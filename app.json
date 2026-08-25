@@ -5,10 +5,8 @@
     "owner": "razeev99091",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#1d4ed8"
     },
@@ -19,14 +17,10 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.razeev990.onlineludo",
       "adaptiveIcon": {
-        "foregroundImage": "./icon.png",
         "backgroundColor": "#1d4ed8"
-      },
-      "package": "com.razeev990.onlineludo"
-    },
-    "web": {
-      "favicon": "./icon.png"
+      }
     },
     "extra": {
       "eas": {
@@ -34,4 +28,5 @@
       }
     }
   }
+}
 }
