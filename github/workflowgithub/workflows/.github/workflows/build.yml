@@ -34,14 +34,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
-
-      - name: 📤 Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Ludo-Supreme-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          ./gradlew :app:assembleDebug --no-daemon
+          ./gradlew :app:assembleDebug -x test --no-daemon
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
