@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, SafeAreaView, Alert, Animated, Easing } from 'react-native';
+import { Audio } from 'expo-av';
 
 const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_DuyB_EEKvMkDk0QFxQykqg_ZXCMzTwo';
@@ -8,7 +9,6 @@ const { width } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(width - 24, 380);
 const CELL_SIZE = BOARD_SIZE / 15;
 
-// Outer 52 track coordinate mapping [row, col]
 const TRACK_COORDINATES = [
   [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
   [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6],
@@ -44,7 +44,24 @@ const TURN_ORDER = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 3D Cubic Dice Face
+// Sound Player Utility
+const playSound = async (type) => {
+  try {
+    let soundAsset;
+    if (type === 'dice') soundAsset = require('./assets/sounds/dice.mp3');
+    else if (type === 'move') soundAsset = require('./assets/sounds/move.mp3');
+    else if (type === 'cut') soundAsset = require('./assets/sounds/cut.mp3');
+    else if (type === 'win') soundAsset = require('./assets/sounds/win.mp3');
+
+    if (soundAsset) {
+      const { sound } = await Audio.Sound.createAsync(soundAsset);
+      await sound.playAsync();
+    }
+  } catch (error) {
+    // Agar file load na ho toh silent skip karega
+  }
+};
+
 const DiceFace = ({ value }) => {
   const dot = <View style={styles.diceDot} />;
   const empty = <View style={[styles.diceDot, { opacity: 0 }]} />;
@@ -64,7 +81,6 @@ const DiceFace = ({ value }) => {
   return <View style={styles.diceBox}>{getDots()}</View>;
 };
 
-// Teardrop Pin Goti Icon
 const PinToken = ({ colorHex, shadowColor }) => (
   <View style={styles.pinWrapper}>
     <View style={[styles.pinHead, { borderColor: '#ffffff', backgroundColor: colorHex, shadowColor: shadowColor }]}>
@@ -74,7 +90,6 @@ const PinToken = ({ colorHex, shadowColor }) => (
   </View>
 );
 
-// Up-Down Bouncing Glow Indicator
 const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
   <Animated.View
     style={[
@@ -219,6 +234,8 @@ export default function App() {
     if (gameMode === 'BOT' && currentTurn === 'BLUE' && isBot) return;
 
     setIsRolling(true);
+    playSound('dice'); // DICE SOUND TRIGGER
+
     spinAnim.setValue(0);
     diceBounceAnim.setValue(1);
 
@@ -268,6 +285,7 @@ export default function App() {
     let startStep = pawnsRef.current[color][index];
 
     if (startStep === -1) {
+      playSound('move');
       const updated = JSON.parse(JSON.stringify(pawnsRef.current));
       updated[color][index] = 0;
       setPawns(updated);
@@ -281,6 +299,7 @@ export default function App() {
 
     for (let step = 1; step <= diceVal; step++) {
       currentStep += 1;
+      playSound('move'); // STEP TICK SOUND TRIGGER
       currentPawnsState = JSON.parse(JSON.stringify(currentPawnsState));
       currentPawnsState[color][index] = currentStep;
       setPawns(currentPawnsState);
@@ -305,6 +324,7 @@ export default function App() {
               if (enemyStep >= 0 && enemyStep < 51) {
                 const enemyTrackIndex = (START_INDEX[enemyColor] + enemyStep) % 52;
                 if (enemyTrackIndex === myTrackIndex) {
+                  playSound('cut'); // GOTI CUT SOUND TRIGGER
                   extraTurn = true;
                   return -1;
                 }
@@ -318,6 +338,7 @@ export default function App() {
 
     let winPlayer = null;
     if (updatedPawns[color].every((s) => s === 56)) {
+      playSound('win'); // VICTORY CHEER SOUND TRIGGER
       winPlayer = color;
       setWinner(color);
       Alert.alert('VICTORY!', `${color} has won the match!`);
@@ -348,7 +369,7 @@ export default function App() {
     if (col === 'YELLOW') return '#eab308';
     return '#0284c7';
   };
-  const renderCell = (row, col) => {
+    const renderCell = (row, col) => {
     if (row < 6 && col < 6) return null;
     if (row < 6 && col > 8) return null;
     if (row > 8 && col < 6) return null;
