@@ -10,7 +10,8 @@ import {
   Alert, 
   Animated, 
   Easing,
-  StatusBar
+  StatusBar,
+  ScrollView
 } from 'react-native';
 import { Audio } from 'expo-av';
 
@@ -52,7 +53,7 @@ const BASE_SPOTS = {
 
 const START_INDEX = { RED: 0, GREEN: 13, YELLOW: 26, BLUE: 39 };
 const SAFE_INDEXES = [0, 8, 13, 21, 26, 34, 39, 47];
-const TURN_ORDER = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
+const ALL_COLORS = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -92,10 +93,11 @@ const DiceFace = ({ value }) => {
 
 const PinToken = ({ colorHex, shadowColor }) => (
   <View style={styles.pinWrapper}>
-    <View style={[styles.pinHead, { borderColor: '#ffffff', backgroundColor: colorHex, shadowColor: shadowColor }]}>
-      <View style={[styles.pinCenterDot, { backgroundColor: colorHex }]} />
+    <View style={[styles.pinHead, { backgroundColor: colorHex, shadowColor: shadowColor }]}>
+      <View style={styles.pinInnerGlow} />
+      <View style={styles.pinCenterDot} />
     </View>
-    <View style={[styles.pinPointer, { borderTopColor: '#ffffff' }]} />
+    <View style={[styles.pinPointer, { borderTopColor: colorHex }]} />
   </View>
 );
 
@@ -115,10 +117,28 @@ const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authInputName, setAuthInputName] = useState('');
-  const [authInputPhone, setAuthInputPhone] = useState('');
 
+  // Modals & Navigation
   const [gameMode, setGameMode] = useState(null); 
+  const [passPlayModal, setPassPlayModal] = useState(false);
+  const [hybridTeamModal, setHybridTeamModal] = useState(false);
   const [onlineScreen, setOnlineScreen] = useState(false);
+  
+  // Game Play Mode Configurations
+  const [playType, setPlayType] = useState('SOLO');
+  const [selectedPlayerCount, setSelectedPlayerCount] = useState(4);
+  const [teamGrouping, setTeamGrouping] = useState('AC_BD');
+  const [friendlyKill, setFriendlyKill] = useState(false);
+  const [activeColors, setActiveColors] = useState(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+
+  // Slot Types: 'LOCAL' | 'ONLINE' | 'BOT'
+  const [playerSlots, setPlayerSlots] = useState({
+    BLUE: 'LOCAL',
+    RED: 'LOCAL',
+    GREEN: 'ONLINE',
+    YELLOW: 'ONLINE',
+  });
+
   const [roomCode, setRoomCode] = useState('');
   const [inputRoomCode, setInputRoomCode] = useState('');
   const [myColor, setMyColor] = useState('BLUE');
@@ -169,7 +189,7 @@ export default function App() {
   const pawnsRef = useRef(pawns);
   pawnsRef.current = pawns;
   const ws = useRef(null);
-  const currentTurn = TURN_ORDER[turnIndex];
+  const currentTurn = activeColors[turnIndex] || activeColors[0];
 
   const resetGame = () => {
     setPawns({
@@ -184,6 +204,8 @@ export default function App() {
     setIsRolling(false);
     setWinner(null);
     setGameMode(null);
+    setPassPlayModal(false);
+    setHybridTeamModal(false);
     setOnlineScreen(false);
     if (ws.current) ws.current.close();
   };
@@ -209,18 +231,22 @@ export default function App() {
       Alert.alert('Required', 'Please enter your username/name to continue.');
       return;
     }
-    setCurrentUser({ name: authInputName.trim(), phone: authInputPhone, coins: 2500 });
+    setCurrentUser({ name: authInputName.trim(), coins: 2500 });
   };
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: () => { setCurrentUser(null); resetGame(); } },
-    ]);
+  const isTeammate = (c1, c2) => {
+    if (playType !== 'TEAM') return false;
+    if (teamGrouping === 'AC_BD') {
+      return ( (c1 === 'BLUE' && c2 === 'GREEN') || (c1 === 'GREEN' && c2 === 'BLUE') ||
+               (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
+    } else {
+      return ( (c1 === 'BLUE' && c2 === 'RED') || (c1 === 'RED' && c2 === 'BLUE') ||
+               (c1 === 'GREEN' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'GREEN') );
+    }
   };
 
   useEffect(() => {
-    if (gameMode !== 'ONLINE' || !roomCode) return;
+    if ((gameMode !== 'ONLINE' && gameMode !== 'HYBRID') || !roomCode) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
     ws.current = new WebSocket(wsUrl);
 
@@ -253,7 +279,7 @@ export default function App() {
   }, [gameMode, roomCode]);
 
   const sendMultiplayerSync = (newPawns, nextTurnIdx, updatedDices, rolled, winPlayer = null) => {
-    if (gameMode === 'ONLINE' && ws.current && ws.current.readyState === WebSocket.OPEN) {
+    if ((gameMode === 'ONLINE' || gameMode === 'HYBRID') && ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         topic: `realtime:room_${roomCode}`,
         event: 'broadcast',
@@ -267,14 +293,17 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (gameMode === 'BOT' && currentTurn !== 'BLUE' && !hasRolled && !isRolling && !isMoving && !winner) {
+    const isBotTurn = (gameMode === 'BOT' && currentTurn !== 'BLUE') || 
+                     (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT');
+
+    if (isBotTurn && !hasRolled && !isRolling && !isMoving && !winner) {
       const botTimer = setTimeout(() => rollDice(true), 800);
       return () => clearTimeout(botTimer);
     }
-  }, [turnIndex, hasRolled, isMoving, gameMode, winner]);
+  }, [turnIndex, hasRolled, isMoving, gameMode, winner, currentTurn, playerSlots]);
 
   const nextTurn = (currentIdx = turnIndex) => {
-    const nextIdx = (currentIdx + 1) % 4;
+    const nextIdx = (currentIdx + 1) % activeColors.length;
     setTurnIndex(nextIdx);
     setHasRolled(false);
     setIsMoving(false);
@@ -293,8 +322,9 @@ export default function App() {
 
   const rollDice = async (isBot = false) => {
     if (hasRolled || isMoving || isRolling || winner) return;
+
     if (gameMode === 'ONLINE' && currentTurn !== myColor) return;
-    if (gameMode === 'BOT' && currentTurn === 'BLUE' && isBot) return;
+    if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'ONLINE' && currentTurn !== myColor) return;
 
     setIsRolling(true);
     playSound('dice');
@@ -336,13 +366,12 @@ export default function App() {
         const nextIdx = nextTurn();
         sendMultiplayerSync(pawnsRef.current, nextIdx, newDices, false);
       }, 700);
-    } else if (validMoves.length === 1 || (gameMode === 'BOT' && currentTurn !== 'BLUE')) {
+    } else if (validMoves.length === 1 || (gameMode === 'BOT' && currentTurn !== 'BLUE') || (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT')) {
       setTimeout(() => executeStepMovement(currentTurn, validMoves[0], finalVal, newDices), 450);
     } else {
       sendMultiplayerSync(pawnsRef.current, turnIndex, newDices, true);
     }
   };
-
   const executeStepMovement = async (color, index, diceVal, currentDices = playerDices) => {
     setIsMoving(true);
     let startStep = pawnsRef.current[color][index];
@@ -381,30 +410,49 @@ export default function App() {
       const isSafeCell = SAFE_INDEXES.includes(myTrackIndex);
 
       if (!isSafeCell) {
-        TURN_ORDER.forEach((enemyColor) => {
+        ALL_COLORS.forEach((enemyColor) => {
           if (enemyColor !== color) {
-            updatedPawns[enemyColor] = updatedPawns[enemyColor].map((enemyStep) => {
-              if (enemyStep >= 0 && enemyStep < 51) {
-                const enemyTrackIndex = (START_INDEX[enemyColor] + enemyStep) % 52;
-                if (enemyTrackIndex === myTrackIndex) {
-                  playSound('cut');
-                  extraTurn = true;
-                  return -1;
+            const teammate = isTeammate(color, enemyColor);
+            if (!teammate || (teammate && friendlyKill)) {
+              updatedPawns[enemyColor] = updatedPawns[enemyColor].map((enemyStep) => {
+                if (enemyStep >= 0 && enemyStep < 51) {
+                  const enemyTrackIndex = (START_INDEX[enemyColor] + enemyStep) % 52;
+                  if (enemyTrackIndex === myTrackIndex) {
+                    playSound('cut');
+                    extraTurn = true;
+                    return -1;
+                  }
                 }
-              }
-              return enemyStep;
-            });
+                return enemyStep;
+              });
+            }
           }
         });
       }
     }
 
     let winPlayer = null;
-    if (updatedPawns[color].every((s) => s === 56)) {
-      playSound('win');
-      winPlayer = color;
-      setWinner(color);
-      Alert.alert('VICTORY!', `${color} has won the match!`);
+    if (playType === 'TEAM') {
+      const partnerColor = teamGrouping === 'AC_BD' 
+        ? (color === 'BLUE' ? 'GREEN' : color === 'GREEN' ? 'BLUE' : color === 'RED' ? 'YELLOW' : 'RED')
+        : (color === 'BLUE' ? 'RED' : color === 'RED' ? 'BLUE' : color === 'GREEN' ? 'YELLOW' : 'GREEN');
+      
+      const myHome = updatedPawns[color].every(s => s === 56);
+      const partnerHome = updatedPawns[partnerColor].every(s => s === 56);
+
+      if (myHome && partnerHome) {
+        playSound('win');
+        winPlayer = `Team ${color} & ${partnerColor}`;
+        setWinner(winPlayer);
+        Alert.alert('TEAM VICTORY!', `${winPlayer} won the team battle!`);
+      }
+    } else {
+      if (updatedPawns[color].every((s) => s === 56)) {
+        playSound('win');
+        winPlayer = color;
+        setWinner(color);
+        Alert.alert('VICTORY!', `${color} has won the match!`);
+      }
     }
 
     setPawns(updatedPawns);
@@ -418,6 +466,7 @@ export default function App() {
       sendMultiplayerSync(updatedPawns, nextIdx, currentDices, false, winPlayer);
     }
   };
+
   const getPawnScreenCoords = (color, stepCount, idx) => {
     if (stepCount === -1) return BASE_SPOTS[color][idx];
     if (stepCount === 56) return [7, 7];
@@ -470,23 +519,27 @@ export default function App() {
     );
   };
 
-  const renderBase = (color, posStyle, label, isVertical) => (
-    <View style={[styles.base, posStyle]}>
-      <View style={styles.baseInnerWhite}>
-        <View style={styles.pocketRow}>
-          <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
-          <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
+  const renderBase = (color, posStyle, label, isVertical) => {
+    const isPlayable = activeColors.includes(color);
+    return (
+      <View style={[styles.base, posStyle, !isPlayable && { opacity: 0.35 }]}>
+        <View style={styles.baseInnerWhite}>
+          <View style={styles.pocketRow}>
+            <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
+            <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
+          </View>
+          <View style={styles.pocketRow}>
+            <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
+            <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
+          </View>
         </View>
-        <View style={styles.pocketRow}>
-          <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
-          <View style={[styles.basePocket, { borderColor: getTurnColorHex(color) }]} />
-        </View>
+        <Text style={[styles.playerLabel, isVertical ? styles.playerLabelRotated : styles.playerLabelHorizontal]}>{label}</Text>
       </View>
-      <Text style={[styles.playerLabel, isVertical ? styles.playerLabelRotated : styles.playerLabelHorizontal]}>{label}</Text>
-    </View>
-  );
+    );
+  };
 
   const renderPlayerTokens = (color, colorHex, shadowColor) => {
+    if (!activeColors.includes(color)) return null;
     return pawns[color].map((stepCount, idx) => {
       const coords = getPawnScreenCoords(color, stepCount, idx);
       const isMyTurn = currentTurn === color;
@@ -514,7 +567,13 @@ export default function App() {
   });
 
   const renderPlayerCard = (color, pinHex, shadowHex, isLeftDice = false, isTopRow = true) => {
+    const isPlayable = activeColors.includes(color);
+    if (!isPlayable) return <View style={{ width: '45%' }} />;
+
     const isCurrent = currentTurn === color;
+    const slotType = playerSlots[color];
+    const badgeText = gameMode === 'HYBRID' ? (slotType === 'LOCAL' ? '📱 Local' : slotType === 'ONLINE' ? '🌐 Online' : '🤖 Bot') : '';
+
     return (
       <View style={styles.cardContainerWrapper}>
         {isCurrent && <ActiveTurnArrow bounceAnim={arrowBounceAnim} isTopRow={isTopRow} />}
@@ -528,11 +587,17 @@ export default function App() {
               <Animated.View style={[styles.cardDiceWrap, isCurrent && { transform: [{ rotate: spinInterpolation }, { scale: diceBounceAnim }] }]}>
                 <DiceFace value={playerDices[color]} />
               </Animated.View>
-              <View style={styles.cardAvatarRight}><PinToken colorHex={pinHex} shadowColor={shadowHex} /></View>
+              <View style={styles.cardAvatarRight}>
+                <PinToken colorHex={pinHex} shadowColor={shadowHex} />
+                {badgeText !== '' && <Text style={styles.slotSmallBadge}>{badgeText}</Text>}
+              </View>
             </>
           ) : (
             <>
-              <View style={styles.cardAvatarLeft}><PinToken colorHex={pinHex} shadowColor={shadowHex} /></View>
+              <View style={styles.cardAvatarLeft}>
+                <PinToken colorHex={pinHex} shadowColor={shadowHex} />
+                {badgeText !== '' && <Text style={styles.slotSmallBadge}>{badgeText}</Text>}
+              </View>
               <Animated.View style={[styles.cardDiceWrap, isCurrent && { transform: [{ rotate: spinInterpolation }, { scale: diceBounceAnim }] }]}>
                 <DiceFace value={playerDices[color]} />
               </Animated.View>
@@ -542,8 +607,7 @@ export default function App() {
       </View>
     );
   };
-
-  // 1. PREMIUM AUTH SCREEN
+  // 1. AUTH SCREEN
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -553,7 +617,7 @@ export default function App() {
           <Text style={styles.crownEmoji}>👑</Text>
           <Text style={styles.brandGoldTitle}>LUDO SUPREME</Text>
           <View style={styles.goldPillBadge}>
-            <Text style={styles.goldPillText}>★ ROYALE 3D EDITION ★</Text>
+            <Text style={styles.goldPillText}>★ HYBRID TEAM 3D ★</Text>
           </View>
         </View>
 
@@ -597,86 +661,99 @@ export default function App() {
     );
   }
 
-  // 2. PREMIUM ONLINE ROOM SCREEN
-  if (onlineScreen) {
+  // 2. HYBRID TEAM-UP CONFIG MODAL
+  if (hybridTeamModal) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
-        
-        <View style={styles.brandHero}>
-          <Text style={styles.crownEmoji}>🌐</Text>
-          <Text style={styles.brandGoldTitle}>PLAY WITH FRIENDS</Text>
-          <View style={styles.goldPillBadge}>
-            <Text style={styles.goldPillText}>MULTIPLAYER BATTLE</Text>
+        <ScrollView style={{ width: '100%' }} contentContainerStyle={{ alignItems: 'center' }}>
+          <View style={styles.brandHero}>
+            <Text style={styles.crownEmoji}>⚡</Text>
+            <Text style={styles.brandGoldTitle}>HYBRID TEAM-UP</Text>
+            <Text style={styles.lobbySubtitle}>Mix Online & Offline Players in 1 Room</Text>
           </View>
-        </View>
-        
-        <View style={styles.glassCard}>
-          <TouchableOpacity 
-            activeOpacity={0.85}
-            style={[styles.mode3DCard, { borderColor: '#10b981', backgroundColor: '#064e3b' }]}
-            onPress={() => {
-              const code = Math.floor(1000 + Math.random() * 9000).toString();
-              setRoomCode(code);
-              setMyColor('BLUE');
-              setGameMode('ONLINE');
-              setOnlineScreen(false);
-              Alert.alert('Room Created!', `Share Room Code: ${code} with your friend.`);
-            }}
-          >
-            <View style={styles.modeIconCircle}><Text style={styles.modeIcon}>➕</Text></View>
-            <View style={styles.modeTextWrap}>
-              <Text style={styles.modeCardTitle}>Create Private Room</Text>
-              <Text style={styles.modeCardSub}>Generate code & invite your friend</Text>
+
+          <View style={[styles.glassCard, { marginTop: 12 }]}>
+            <Text style={styles.inputLabel}>CONFIGURE PLAYER SLOTS:</Text>
+            
+            {ALL_COLORS.map((col) => (
+              <View key={col} style={styles.slotRow}>
+                <Text style={[styles.slotColorText, { color: getTurnColorHex(col) }]}>{col}</Text>
+                
+                <View style={styles.slotTypeSelector}>
+                  {['LOCAL', 'ONLINE', 'BOT'].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.slotTypePill,
+                        playerSlots[col] === type && styles.slotTypePillActive
+                      ]}
+                      onPress={() => setPlayerSlots({ ...playerSlots, [col]: type })}
+                    >
+                      <Text style={[
+                        styles.slotTypeText,
+                        playerSlots[col] === type && styles.slotTypeTextActive
+                      ]}>
+                        {type === 'LOCAL' ? '📱 Local' : type === 'ONLINE' ? '🌐 Online' : '🤖 Bot'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.orDivider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.orText}>ROOM SETUP</Text>
+              <View style={styles.dividerLine} />
             </View>
-          </TouchableOpacity>
 
-          <View style={styles.orDivider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.orText}>JOIN ROOM</Text>
-            <View style={styles.dividerLine} />
+            <TouchableOpacity 
+              style={styles.checkboxRow} 
+              onPress={() => setFriendlyKill(!friendlyKill)}
+            >
+              <View style={[styles.checkSquare, friendlyKill && styles.checkSquareActive]}>
+                {friendlyKill && <Text style={styles.checkTick}>✓</Text>}
+              </View>
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.checkboxLabel}>Enable Friendly Kill (Teammate cut)?</Text>
+                <Text style={styles.helperTip}>
+                  {friendlyKill ? '⚠️ Teammates CAN cut each other.' : '🛡️ Teammates are protected.'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              activeOpacity={0.85}
+              style={[styles.gold3DButton, { marginTop: 16 }]} 
+              onPress={() => {
+                const code = Math.floor(1000 + Math.random() * 9000).toString();
+                setRoomCode(code);
+                setMyColor('BLUE');
+                setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+                setPlayType('TEAM');
+                setGameMode('HYBRID');
+                setHybridTeamModal(false);
+                Alert.alert('Hybrid Room Live!', `Share Code: ${code} with remote players.`);
+              }}
+            >
+              <Text style={styles.gold3DButtonText}>LAUNCH HYBRID MATCH ➔</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              activeOpacity={0.85}
+              style={[styles.darkSecondaryButton, { marginTop: 10 }]} 
+              onPress={() => setHybridTeamModal(false)}
+            >
+              <Text style={styles.darkSecondaryButtonText}>⬅ Back</Text>
+            </TouchableOpacity>
           </View>
-
-          <TextInput
-            style={[styles.gameTextInput, { textAlign: 'center', fontSize: 20, letterSpacing: 4 }]}
-            placeholder="ENTER 4-DIGIT CODE"
-            placeholderTextColor="#64748b"
-            keyboardType="number-pad"
-            maxLength={6}
-            value={inputRoomCode}
-            onChangeText={setInputRoomCode}
-          />
-
-          <TouchableOpacity 
-            activeOpacity={0.85}
-            style={[styles.gold3DButton, { marginTop: 12 }]} 
-            onPress={() => {
-              if (inputRoomCode.trim().length >= 3) {
-                setRoomCode(inputRoomCode.trim());
-                setMyColor('RED');
-                setGameMode('ONLINE');
-                setOnlineScreen(false);
-              } else {
-                Alert.alert('Invalid Code', 'Please enter a valid 4-digit code');
-              }
-            }}
-          >
-            <Text style={styles.gold3DButtonText}>JOIN ROOM NOW ➔</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            activeOpacity={0.85}
-            style={[styles.darkSecondaryButton, { marginTop: 12 }]} 
-            onPress={() => setOnlineScreen(false)}
-          >
-            <Text style={styles.darkSecondaryButtonText}>⬅ Back To Lobby</Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // 3. MAIN GAME MODE LOBBY SCREEN
+  // 3. MAIN 2x2 GRID DASHBOARD
   if (!gameMode) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -691,66 +768,89 @@ export default function App() {
               <Text style={styles.profileUserName}>{currentUser.name}</Text>
               <View style={styles.coinBadge}>
                 <Text style={styles.coinIcon}>🪙</Text>
-                <Text style={styles.coinAmount}>{currentUser.coins.toLocaleString()}</Text>
+                <Text style={styles.coinAmount}>{currentUser.coins.toLocaleString()} Coins</Text>
               </View>
             </View>
           </View>
           
-          <TouchableOpacity style={styles.logoutPill} onPress={handleLogout}>
+          <TouchableOpacity style={styles.logoutPill} onPress={() => { setCurrentUser(null); resetGame(); }}>
             <Text style={styles.logoutPillText}>Logout ✕</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.lobbyCenterTitle}>
-          <Text style={styles.brandGoldTitleSmall}>CHOOSE GAME MODE</Text>
-          <Text style={styles.lobbySubtitle}>Select an arena to roll the dice</Text>
+          <Text style={styles.brandGoldTitle}>🎲 LUDO SUPREME 🎲</Text>
+          <Text style={styles.lobbySubtitle}>Choose Battle Mode</Text>
         </View>
 
-        <View style={styles.modeList}>
+        <View style={styles.gridContainer}>
           <TouchableOpacity 
             activeOpacity={0.85}
-            style={[styles.mode3DCard, { borderColor: '#38bdf8', backgroundColor: '#0c4a6e' }]}
-            onPress={() => setGameMode('BOT')}
+            style={[styles.gridTile, { borderColor: '#38bdf8', backgroundColor: '#075985' }]}
+            onPress={() => {
+              setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+              setPlayType('SOLO');
+              setGameMode('BOT');
+            }}
           >
-            <View style={[styles.modeIconCircle, { backgroundColor: '#0284c7' }]}>
-              <Text style={styles.modeIcon}>🤖</Text>
+            <View style={[styles.tileIconCircle, { backgroundColor: '#0284c7' }]}>
+              <Text style={styles.tileEmoji}>🤖</Text>
             </View>
-            <View style={styles.modeTextWrap}>
-              <Text style={styles.modeCardTitle}>Play Vs Computer</Text>
-              <Text style={styles.modeCardSub}>Practice matches offline</Text>
-            </View>
-            <Text style={styles.arrowChevron}>➔</Text>
+            <Text style={styles.tileTitle}>Vs Computer</Text>
+            <Text style={styles.tileSub}>Practice Bot</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             activeOpacity={0.85}
-            style={[styles.mode3DCard, { borderColor: '#4ade80', backgroundColor: '#14532d' }]}
-            onPress={() => setGameMode('OFFLINE')}
+            style={[styles.gridTile, { borderColor: '#4ade80', backgroundColor: '#166534' }]}
+            onPress={() => {
+              setPlayType('SOLO');
+              setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+              setGameMode('OFFLINE');
+            }}
           >
-            <View style={[styles.modeIconCircle, { backgroundColor: '#16a34a' }]}>
-              <Text style={styles.modeIcon}>👥</Text>
+            <View style={[styles.tileIconCircle, { backgroundColor: '#15803d' }]}>
+              <Text style={styles.tileEmoji}>👥</Text>
             </View>
-            <View style={styles.modeTextWrap}>
-              <Text style={styles.modeCardTitle}>Pass & Play (4P)</Text>
-              <Text style={styles.modeCardSub}>Single device local multiplayer</Text>
-            </View>
-            <Text style={styles.arrowChevron}>➔</Text>
+            <Text style={styles.tileTitle}>Pass & Play</Text>
+            <Text style={styles.tileSub}>Local 2 - 4 Players</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             activeOpacity={0.85}
-            style={[styles.mode3DCard, { borderColor: '#c084fc', backgroundColor: '#581c87' }]}
-            onPress={() => setOnlineScreen(true)}
+            style={[styles.gridTile, { borderColor: '#facc15', backgroundColor: '#854d0e' }]}
+            onPress={() => setHybridTeamModal(true)}
           >
-            <View style={[styles.modeIconCircle, { backgroundColor: '#9333ea' }]}>
-              <Text style={styles.modeIcon}>🌐</Text>
+            <View style={[styles.tileIconCircle, { backgroundColor: '#ca8a04' }]}>
+              <Text style={styles.tileEmoji}>🤝</Text>
             </View>
-            <View style={styles.modeTextWrap}>
-              <Text style={styles.modeCardTitle}>Online Multiplayer</Text>
-              <Text style={styles.modeCardSub}>Play with friends with room code</Text>
-            </View>
-            <Text style={styles.arrowChevron}>➔</Text>
+            <Text style={styles.tileTitle}>Team Up (Hybrid)</Text>
+            <Text style={styles.tileSub}>Online + Offline</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.gridTile, { borderColor: '#c084fc', backgroundColor: '#6b21a8' }]}
+            onPress={() => {
+              const code = Math.floor(1000 + Math.random() * 9000).toString();
+              setRoomCode(code);
+              setMyColor('BLUE');
+              setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+              setPlayType('SOLO');
+              setGameMode('ONLINE');
+              Alert.alert('Online Room Created', `Room Code: ${code}`);
+            }}
+          >
+            <View style={[styles.tileIconCircle, { backgroundColor: '#7e22ce' }]}>
+              <Text style={styles.tileEmoji}>🌐</Text>
+            </View>
+            <Text style={styles.tileTitle}>4P Online</Text>
+            <Text style={styles.tileSub}>Friend Room</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.bottomFooterPill}>
+          <Text style={styles.footerPillText}>★ MULTIPLAYER • REALTIME • FAIR PLAY ★</Text>
         </View>
       </SafeAreaView>
     );
@@ -766,10 +866,12 @@ export default function App() {
         </TouchableOpacity>
         
         <View style={styles.playerInfoTop}>
-          <Text style={styles.playerInfoTopText}>👑 {currentUser.name}</Text>
+          <Text style={styles.playerInfoTopText}>
+            {gameMode === 'HYBRID' ? '⚡ HYBRID 2v2' : playType === 'TEAM' ? '🤝 TEAM MODE' : `👑 ${currentUser.name}`}
+          </Text>
         </View>
 
-        {gameMode === 'ONLINE' && (
+        {(gameMode === 'ONLINE' || gameMode === 'HYBRID') && (
           <View style={styles.roomTag}>
             <Text style={styles.roomTagText}>Room: {roomCode}</Text>
           </View>
@@ -820,28 +922,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#0a0f1d',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 16,
   },
   brandHero: {
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
   },
   crownEmoji: {
-    fontSize: 42,
-    marginBottom: 4,
+    fontSize: 38,
+    marginBottom: 2,
   },
   brandGoldTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#facc15',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(250, 204, 21, 0.4)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  brandGoldTitleSmall: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '900',
     color: '#facc15',
     letterSpacing: 1.5,
@@ -854,7 +947,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 4,
-    marginTop: 6,
+    marginTop: 4,
   },
   goldPillText: {
     color: '#fef08a',
@@ -866,7 +959,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#131c31',
     borderRadius: 20,
-    padding: 22,
+    padding: 18,
     borderWidth: 1.5,
     borderColor: '#1e293b',
     shadowColor: '#000',
@@ -879,7 +972,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
     letterSpacing: 1,
   },
   inputContainer: {
@@ -889,7 +982,7 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 8,
     letterSpacing: 0.5,
   },
   gameTextInput: {
@@ -917,14 +1010,14 @@ const styles = StyleSheet.create({
   },
   gold3DButtonText: {
     color: '#000000',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     letterSpacing: 1,
   },
   orDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 18,
+    marginVertical: 14,
   },
   dividerLine: {
     flex: 1,
@@ -934,7 +1027,7 @@ const styles = StyleSheet.create({
   orText: {
     color: '#64748b',
     paddingHorizontal: 12,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   darkSecondaryButton: {
@@ -1012,57 +1105,157 @@ const styles = StyleSheet.create({
   },
   lobbyCenterTitle: {
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 6,
   },
   lobbySubtitle: {
     color: '#94a3b8',
     fontSize: 13,
-    marginTop: 4,
+    marginTop: 2,
   },
-  modeList: {
+  gridContainer: {
     width: '100%',
-  },
-  mode3DCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginVertical: 8,
   },
-  modeIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  gridTile: {
+    width: '48%',
+    height: 145,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    marginBottom: 14,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  tileIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginBottom: 6,
+    elevation: 4,
   },
-  modeIcon: {
-    fontSize: 24,
+  tileEmoji: {
+    fontSize: 26,
   },
-  modeTextWrap: {
-    flex: 1,
-  },
-  modeCardTitle: {
+  tileTitle: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  tileSub: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    opacity: 0.85,
+  },
+  bottomFooterPill: {
+    backgroundColor: '#131c31',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  footerPillText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  slotRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 6,
+    backgroundColor: '#0a0f1d',
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  slotColorText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    width: 70,
+  },
+  slotTypeSelector: {
+    flexDirection: 'row',
+  },
+  slotTypePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#1e293b',
+    marginLeft: 4,
+  },
+  slotTypePillActive: {
+    backgroundColor: '#0284c7',
+  },
+  slotTypeText: {
+    color: '#94a3b8',
+    fontSize: 11,
     fontWeight: 'bold',
   },
-  modeCardSub: {
-    color: '#e2e8f0',
-    fontSize: 12,
-    marginTop: 2,
-    opacity: 0.8,
-  },
-  arrowChevron: {
+  slotTypeTextActive: {
     color: '#ffffff',
-    fontSize: 18,
+  },
+  slotSmallBadge: {
+    color: '#facc15',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0a0f1d',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  checkSquare: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#64748b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkSquareActive: {
+    backgroundColor: '#ef4444',
+    borderColor: '#ef4444',
+  },
+  checkTick: {
+    color: '#ffffff',
     fontWeight: '900',
+    fontSize: 13,
+  },
+  checkboxLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  helperTip: {
+    color: '#94a3b8',
+    fontSize: 10,
+    marginTop: 2,
   },
   mainContainer: {
     flex: 1,
@@ -1162,9 +1355,11 @@ const styles = StyleSheet.create({
   },
   cardAvatarLeft: {
     marginRight: 6,
+    alignItems: 'center',
   },
   cardAvatarRight: {
     marginLeft: 6,
+    alignItems: 'center',
   },
   floatingArrowContainer: {
     position: 'absolute',
@@ -1227,25 +1422,41 @@ const styles = StyleSheet.create({
     height: 28,
   },
   pinHead: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+  },
+  pinInnerGlow: {
+    position: 'absolute',
+    top: 2,
+    left: 4,
+    width: 8,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   pinCenterDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    backgroundColor: '#ffffff',
+    opacity: 0.9,
   },
   pinPointer: {
     width: 0,
     height: 0,
     borderLeftWidth: 4,
     borderRightWidth: 4,
-    borderTopWidth: 6,
+    borderTopWidth: 7,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     marginTop: -1,
