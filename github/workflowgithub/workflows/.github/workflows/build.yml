@@ -30,10 +30,23 @@ jobs:
       - name: 🛠️ Prebuild Android Project
         run: npx expo prebuild --platform android --clean
 
+      - name: 🔧 Patch Gradle Compatibility
+        run: |
+          echo "android.enableJetifier=true" >> android/gradle.properties
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+
       - name: ⚙️ Build Debug APK
         run: |
           cd android
           chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: 📤 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ludo-Supreme-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           ./gradlew :app:assembleDebug -x test --no-daemon
 
       - name: 📤 Upload APK Artifact
