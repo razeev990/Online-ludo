@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, SafeAreaView, Alert, Animated, Easing } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  TextInput, 
+  StyleSheet, 
+  Dimensions, 
+  SafeAreaView, 
+  Alert, 
+  Animated, 
+  Easing,
+  StatusBar
+} from 'react-native';
 import { Audio } from 'expo-av';
 
 const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv'; 
@@ -44,7 +56,6 @@ const TURN_ORDER = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Sound Player Utility
 const playSound = async (type) => {
   try {
     let soundAsset;
@@ -57,9 +68,7 @@ const playSound = async (type) => {
       const { sound } = await Audio.Sound.createAsync(soundAsset);
       await sound.playAsync();
     }
-  } catch (error) {
-    // Agar file load na ho toh silent skip karega
-  }
+  } catch (error) {}
 };
 
 const DiceFace = ({ value }) => {
@@ -104,9 +113,15 @@ const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
   </Animated.View>
 );
 export default function App() {
-  const [gameMode, setGameMode] = useState(null);
-  const [roomCode] = useState('789');
-  const [myColor] = useState('BLUE');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authInputName, setAuthInputName] = useState('');
+  const [authInputPhone, setAuthInputPhone] = useState('');
+
+  const [gameMode, setGameMode] = useState(null); 
+  const [onlineScreen, setOnlineScreen] = useState(false);
+  const [roomCode, setRoomCode] = useState('');
+  const [inputRoomCode, setInputRoomCode] = useState('');
+  const [myColor, setMyColor] = useState('BLUE');
 
   const [playerDices, setPlayerDices] = useState({
     BLUE: 1,
@@ -156,8 +171,56 @@ export default function App() {
   const ws = useRef(null);
   const currentTurn = TURN_ORDER[turnIndex];
 
+  const resetGame = () => {
+    setPawns({
+      BLUE: [-1, -1, -1, -1],
+      RED: [-1, -1, -1, -1],
+      GREEN: [-1, -1, -1, -1],
+      YELLOW: [-1, -1, -1, -1],
+    });
+    setTurnIndex(0);
+    setHasRolled(false);
+    setIsMoving(false);
+    setIsRolling(false);
+    setWinner(null);
+    setGameMode(null);
+    setOnlineScreen(false);
+    if (ws.current) ws.current.close();
+  };
+
+  const handleExitGame = () => {
+    Alert.alert(
+      'Exit Game',
+      'Do you want to quit this match and return to Main Menu?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Quit Match', style: 'destructive', onPress: resetGame },
+      ]
+    );
+  };
+
+  const handleLogin = (isGuest = false) => {
+    if (isGuest) {
+      const guestId = Math.floor(1000 + Math.random() * 9000);
+      setCurrentUser({ name: `Guest_${guestId}`, coins: 500 });
+      return;
+    }
+    if (!authInputName.trim()) {
+      Alert.alert('Required', 'Please enter your username/name to continue.');
+      return;
+    }
+    setCurrentUser({ name: authInputName.trim(), phone: authInputPhone, coins: 2500 });
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Logout', style: 'destructive', onPress: () => { setCurrentUser(null); resetGame(); } },
+    ]);
+  };
+
   useEffect(() => {
-    if (gameMode !== 'ONLINE') return;
+    if (gameMode !== 'ONLINE' || !roomCode) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
     ws.current = new WebSocket(wsUrl);
 
@@ -234,7 +297,7 @@ export default function App() {
     if (gameMode === 'BOT' && currentTurn === 'BLUE' && isBot) return;
 
     setIsRolling(true);
-    playSound('dice'); // DICE SOUND TRIGGER
+    playSound('dice');
 
     spinAnim.setValue(0);
     diceBounceAnim.setValue(1);
@@ -299,7 +362,7 @@ export default function App() {
 
     for (let step = 1; step <= diceVal; step++) {
       currentStep += 1;
-      playSound('move'); // STEP TICK SOUND TRIGGER
+      playSound('move');
       currentPawnsState = JSON.parse(JSON.stringify(currentPawnsState));
       currentPawnsState[color][index] = currentStep;
       setPawns(currentPawnsState);
@@ -324,7 +387,7 @@ export default function App() {
               if (enemyStep >= 0 && enemyStep < 51) {
                 const enemyTrackIndex = (START_INDEX[enemyColor] + enemyStep) % 52;
                 if (enemyTrackIndex === myTrackIndex) {
-                  playSound('cut'); // GOTI CUT SOUND TRIGGER
+                  playSound('cut');
                   extraTurn = true;
                   return -1;
                 }
@@ -338,7 +401,7 @@ export default function App() {
 
     let winPlayer = null;
     if (updatedPawns[color].every((s) => s === 56)) {
-      playSound('win'); // VICTORY CHEER SOUND TRIGGER
+      playSound('win');
       winPlayer = color;
       setWinner(color);
       Alert.alert('VICTORY!', `${color} has won the match!`);
@@ -355,7 +418,6 @@ export default function App() {
       sendMultiplayerSync(updatedPawns, nextIdx, currentDices, false, winPlayer);
     }
   };
-
   const getPawnScreenCoords = (color, stepCount, idx) => {
     if (stepCount === -1) return BASE_SPOTS[color][idx];
     if (stepCount === 56) return [7, 7];
@@ -369,7 +431,8 @@ export default function App() {
     if (col === 'YELLOW') return '#eab308';
     return '#0284c7';
   };
-    const renderCell = (row, col) => {
+
+  const renderCell = (row, col) => {
     if (row < 6 && col < 6) return null;
     if (row < 6 && col > 8) return null;
     if (row > 8 && col < 6) return null;
@@ -480,28 +543,238 @@ export default function App() {
     );
   };
 
-  if (!gameMode) {
+  // 1. PREMIUM AUTH SCREEN
+  if (!currentUser) {
     return (
-      <SafeAreaView style={styles.lobbyContainer}>
-        <Text style={styles.lobbyTitle}>🎲 4-PLAYER 3D LUDO</Text>
-        <View style={styles.lobbyCard}>
-          <TouchableOpacity style={[styles.modeBtn, { backgroundColor: '#0284c7' }]} onPress={() => setGameMode('BOT')}>
-            <Text style={styles.modeBtnText}>🤖 Play Vs Computer</Text>
+      <SafeAreaView style={styles.royaleContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
+
+        <View style={styles.brandHero}>
+          <Text style={styles.crownEmoji}>👑</Text>
+          <Text style={styles.brandGoldTitle}>LUDO SUPREME</Text>
+          <View style={styles.goldPillBadge}>
+            <Text style={styles.goldPillText}>★ ROYALE 3D EDITION ★</Text>
+          </View>
+        </View>
+
+        <View style={styles.glassCard}>
+          <Text style={styles.cardHeading}>PLAYER LOGIN</Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>YOUR NICKNAME</Text>
+            <TextInput
+              style={styles.gameTextInput}
+              placeholder="e.g. MasterRajeev"
+              placeholderTextColor="#64748b"
+              value={authInputName}
+              onChangeText={setAuthInputName}
+            />
+          </View>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={styles.gold3DButton}
+            onPress={() => handleLogin(false)}
+          >
+            <Text style={styles.gold3DButtonText}>ENTER GAME  ➔</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.modeBtn, { backgroundColor: '#16a34a' }]} onPress={() => setGameMode('OFFLINE')}>
-            <Text style={styles.modeBtnText}>👥 Pass & Play (4 Players)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.modeBtn, { backgroundColor: '#9333ea' }]} onPress={() => setGameMode('ONLINE')}>
-            <Text style={styles.modeBtnText}>🌐 Play Online With Friends</Text>
+
+          <View style={styles.orDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.orText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={styles.darkSecondaryButton}
+            onPress={() => handleLogin(true)}
+          >
+            <Text style={styles.darkSecondaryButtonText}>⚡ Quick Guest Login</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  // 2. PREMIUM ONLINE ROOM SCREEN
+  if (onlineScreen) {
+    return (
+      <SafeAreaView style={styles.royaleContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
+        
+        <View style={styles.brandHero}>
+          <Text style={styles.crownEmoji}>🌐</Text>
+          <Text style={styles.brandGoldTitle}>PLAY WITH FRIENDS</Text>
+          <View style={styles.goldPillBadge}>
+            <Text style={styles.goldPillText}>MULTIPLAYER BATTLE</Text>
+          </View>
+        </View>
+        
+        <View style={styles.glassCard}>
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.mode3DCard, { borderColor: '#10b981', backgroundColor: '#064e3b' }]}
+            onPress={() => {
+              const code = Math.floor(1000 + Math.random() * 9000).toString();
+              setRoomCode(code);
+              setMyColor('BLUE');
+              setGameMode('ONLINE');
+              setOnlineScreen(false);
+              Alert.alert('Room Created!', `Share Room Code: ${code} with your friend.`);
+            }}
+          >
+            <View style={styles.modeIconCircle}><Text style={styles.modeIcon}>➕</Text></View>
+            <View style={styles.modeTextWrap}>
+              <Text style={styles.modeCardTitle}>Create Private Room</Text>
+              <Text style={styles.modeCardSub}>Generate code & invite your friend</Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.orDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.orText}>JOIN ROOM</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TextInput
+            style={[styles.gameTextInput, { textAlign: 'center', fontSize: 20, letterSpacing: 4 }]}
+            placeholder="ENTER 4-DIGIT CODE"
+            placeholderTextColor="#64748b"
+            keyboardType="number-pad"
+            maxLength={6}
+            value={inputRoomCode}
+            onChangeText={setInputRoomCode}
+          />
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.gold3DButton, { marginTop: 12 }]} 
+            onPress={() => {
+              if (inputRoomCode.trim().length >= 3) {
+                setRoomCode(inputRoomCode.trim());
+                setMyColor('RED');
+                setGameMode('ONLINE');
+                setOnlineScreen(false);
+              } else {
+                Alert.alert('Invalid Code', 'Please enter a valid 4-digit code');
+              }
+            }}
+          >
+            <Text style={styles.gold3DButtonText}>JOIN ROOM NOW ➔</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.darkSecondaryButton, { marginTop: 12 }]} 
+            onPress={() => setOnlineScreen(false)}
+          >
+            <Text style={styles.darkSecondaryButtonText}>⬅ Back To Lobby</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // 3. MAIN GAME MODE LOBBY SCREEN
+  if (!gameMode) {
+    return (
+      <SafeAreaView style={styles.royaleContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
+
+        <View style={styles.topProfileHeader}>
+          <View style={styles.profileLeftGroup}>
+            <View style={styles.profileAvatarGlow}>
+              <Text style={styles.profileAvatarIcon}>👑</Text>
+            </View>
+            <View>
+              <Text style={styles.profileUserName}>{currentUser.name}</Text>
+              <View style={styles.coinBadge}>
+                <Text style={styles.coinIcon}>🪙</Text>
+                <Text style={styles.coinAmount}>{currentUser.coins.toLocaleString()}</Text>
+              </View>
+            </View>
+          </View>
+          
+          <TouchableOpacity style={styles.logoutPill} onPress={handleLogout}>
+            <Text style={styles.logoutPillText}>Logout ✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.lobbyCenterTitle}>
+          <Text style={styles.brandGoldTitleSmall}>CHOOSE GAME MODE</Text>
+          <Text style={styles.lobbySubtitle}>Select an arena to roll the dice</Text>
+        </View>
+
+        <View style={styles.modeList}>
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.mode3DCard, { borderColor: '#38bdf8', backgroundColor: '#0c4a6e' }]}
+            onPress={() => setGameMode('BOT')}
+          >
+            <View style={[styles.modeIconCircle, { backgroundColor: '#0284c7' }]}>
+              <Text style={styles.modeIcon}>🤖</Text>
+            </View>
+            <View style={styles.modeTextWrap}>
+              <Text style={styles.modeCardTitle}>Play Vs Computer</Text>
+              <Text style={styles.modeCardSub}>Practice matches offline</Text>
+            </View>
+            <Text style={styles.arrowChevron}>➔</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.mode3DCard, { borderColor: '#4ade80', backgroundColor: '#14532d' }]}
+            onPress={() => setGameMode('OFFLINE')}
+          >
+            <View style={[styles.modeIconCircle, { backgroundColor: '#16a34a' }]}>
+              <Text style={styles.modeIcon}>👥</Text>
+            </View>
+            <View style={styles.modeTextWrap}>
+              <Text style={styles.modeCardTitle}>Pass & Play (4P)</Text>
+              <Text style={styles.modeCardSub}>Single device local multiplayer</Text>
+            </View>
+            <Text style={styles.arrowChevron}>➔</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            activeOpacity={0.85}
+            style={[styles.mode3DCard, { borderColor: '#c084fc', backgroundColor: '#581c87' }]}
+            onPress={() => setOnlineScreen(true)}
+          >
+            <View style={[styles.modeIconCircle, { backgroundColor: '#9333ea' }]}>
+              <Text style={styles.modeIcon}>🌐</Text>
+            </View>
+            <View style={styles.modeTextWrap}>
+              <Text style={styles.modeCardTitle}>Online Multiplayer</Text>
+              <Text style={styles.modeCardSub}>Play with friends with room code</Text>
+            </View>
+            <Text style={styles.arrowChevron}>➔</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView style={styles.mainContainer}>
+      <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
       <View style={styles.patternBg} />
+
+      <View style={styles.headerBar}>
+        <TouchableOpacity style={styles.exitBtn} onPress={handleExitGame}>
+          <Text style={styles.exitBtnText}>✕ Exit</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.playerInfoTop}>
+          <Text style={styles.playerInfoTopText}>👑 {currentUser.name}</Text>
+        </View>
+
+        {gameMode === 'ONLINE' && (
+          <View style={styles.roomTag}>
+            <Text style={styles.roomTagText}>Room: {roomCode}</Text>
+          </View>
+        )}
+      </View>
 
       <View style={styles.topCardsRow}>
         {renderPlayerCard('RED', '#e11d48', '#991b1b', false, true)}
@@ -512,7 +785,7 @@ export default function App() {
         <View style={styles.board}>
           {renderBase('RED', styles.redBase, 'Player 2', true)}
           {renderBase('GREEN', styles.greenBase, 'Player 3', false)}
-          {renderBase('BLUE', styles.blueBase, 'Player 1', false)}
+          {renderBase('BLUE', styles.blueBase, currentUser.name, false)}
           {renderBase('YELLOW', styles.yellowBase, 'Player 4', false)}
 
           <View style={styles.centerHome}>
@@ -542,62 +815,587 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: '#1d4ed8', alignItems: 'center', justifyContent: 'space-around', paddingVertical: 10 },
-  patternBg: { ...StyleSheet.absoluteFillObject, backgroundColor: '#1e40af', opacity: 0.9 },
-  lobbyContainer: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  lobbyTitle: { fontSize: 30, fontWeight: 'bold', color: '#38bdf8', marginBottom: 30 },
-  lobbyCard: { width: '100%', backgroundColor: '#1e293b', padding: 20, borderRadius: 16 },
-  modeBtn: { paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginBottom: 15 },
-  modeBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-
-  topCardsRow: { width: BOARD_SIZE, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 6 },
-  bottomCardsRow: { width: BOARD_SIZE, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 6 },
-  cardContainerWrapper: { position: 'relative', alignItems: 'center' },
-  playerCard: { width: 110, height: 60, borderRadius: 12, borderWidth: 3, borderColor: '#facc15', backgroundColor: '#0284c7', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, elevation: 8 },
-  activeCardGlow: { borderColor: '#ffffff', borderWidth: 3.5, backgroundColor: '#0369a1' },
-  cardAvatarLeft: { width: 34, height: 46, justifyContent: 'center', alignItems: 'center' },
-  cardAvatarRight: { width: 34, height: 46, justifyContent: 'center', alignItems: 'center' },
-  cardDiceWrap: { width: 48, height: 46, backgroundColor: '#fecdd3', borderRadius: 8, borderWidth: 1.5, borderColor: '#f43f5e', justifyContent: 'center', alignItems: 'center' },
-
-  floatingArrowContainer: { position: 'absolute', zIndex: 50, alignItems: 'center', justifyContent: 'center' },
-  arrowTopPos: { top: -22 },
-  arrowBottomPos: { bottom: -22 },
-  arrowIconBubble: { width: 28, height: 22, borderRadius: 6, backgroundColor: '#f97316', borderWidth: 2, borderColor: '#fde047', justifyContent: 'center', alignItems: 'center', elevation: 8 },
-  arrowIconText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold' },
-
-  boardContainer: { padding: 2, backgroundColor: '#000', borderWidth: 2, borderColor: '#334155', elevation: 15 },
-  board: { width: BOARD_SIZE, height: BOARD_SIZE, backgroundColor: '#fff', position: 'relative' },
-  base: { width: CELL_SIZE * 6, height: CELL_SIZE * 6, position: 'absolute', justifyContent: 'center', alignItems: 'center' },
+  royaleContainer: {
+    flex: 1,
+    backgroundColor: '#0a0f1d',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  brandHero: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  crownEmoji: {
+    fontSize: 42,
+    marginBottom: 4,
+  },
+  brandGoldTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#facc15',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(250, 204, 21, 0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  brandGoldTitleSmall: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#facc15',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+  },
+  goldPillBadge: {
+    backgroundColor: '#78350f',
+    borderColor: '#facc15',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  goldPillText: {
+    color: '#fef08a',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  glassCard: {
+    width: '100%',
+    backgroundColor: '#131c31',
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: '#1e293b',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  cardHeading: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 18,
+    letterSpacing: 1,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  gameTextInput: {
+    backgroundColor: '#0a0f1d',
+    borderWidth: 1.5,
+    borderColor: '#334155',
+    borderRadius: 12,
+    color: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  gold3DButton: {
+    backgroundColor: '#eab308',
+    borderColor: '#fef08a',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  gold3DButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#334155',
+  },
+  orText: {
+    color: '#64748b',
+    paddingHorizontal: 12,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  darkSecondaryButton: {
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  darkSecondaryButtonText: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  topProfileHeader: {
+    width: '100%',
+    backgroundColor: '#131c31',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  profileLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileAvatarGlow: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1e293b',
+    borderWidth: 1.5,
+    borderColor: '#facc15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  profileAvatarIcon: {
+    fontSize: 22,
+  },
+  profileUserName: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  coinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  coinIcon: {
+    fontSize: 13,
+    marginRight: 4,
+  },
+  coinAmount: {
+    color: '#facc15',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  logoutPill: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  logoutPillText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  lobbyCenterTitle: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  lobbySubtitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  modeList: {
+    width: '100%',
+  },
+  mode3DCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modeIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  modeIcon: {
+    fontSize: 24,
+  },
+  modeTextWrap: {
+    flex: 1,
+  },
+  modeCardTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modeCardSub: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    marginTop: 2,
+    opacity: 0.8,
+  },
+  arrowChevron: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#1e3a8a',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  patternBg: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1e40af',
+  },
+  headerBar: {
+    width: '94%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 4,
+    zIndex: 10,
+  },
+  exitBtn: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  exitBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  playerInfoTop: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  playerInfoTopText: {
+    color: '#facc15',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  roomTag: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+  },
+  roomTagText: {
+    color: '#38bdf8',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  topCardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '94%',
+    paddingHorizontal: 8,
+  },
+  bottomCardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '94%',
+    paddingHorizontal: 8,
+  },
+  cardContainerWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  playerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284c7',
+    borderWidth: 2,
+    borderColor: '#facc15',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activeCardGlow: {
+    borderColor: '#ffffff',
+    elevation: 10,
+    shadowColor: '#ffffff',
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+  },
+  cardDiceWrap: {
+    marginHorizontal: 4,
+  },
+  cardAvatarLeft: {
+    marginRight: 6,
+  },
+  cardAvatarRight: {
+    marginLeft: 6,
+  },
+  floatingArrowContainer: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 20,
+  },
+  arrowTopPos: {
+    bottom: -22,
+  },
+  arrowBottomPos: {
+    top: -22,
+  },
+  arrowIconBubble: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  arrowIconText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  diceBox: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 3,
+  },
+  diceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#0f172a',
+    margin: 1.5,
+  },
+  diceCenter: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  diceRowSpace: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 2,
+  },
+  diceCol: {
+    justifyContent: 'space-between',
+  },
+  pinWrapper: {
+    alignItems: 'center',
+    width: 22,
+    height: 28,
+  },
+  pinHead: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  pinCenterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  pinPointer: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginTop: -1,
+  },
+  boardContainer: {
+    width: BOARD_SIZE,
+    height: BOARD_SIZE,
+    backgroundColor: '#000000',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  board: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    backgroundColor: '#ffffff',
+  },
+  cell: {
+    position: 'absolute',
+    width: CELL_SIZE,
+    height: CELL_SIZE,
+    borderWidth: 0.5,
+    borderColor: '#94a3b8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  starText: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: 'bold',
+  },
+  arrowText: {
+    fontSize: 12,
+    color: '#e11d48',
+    fontWeight: 'bold',
+  },
+  base: {
+    position: 'absolute',
+    width: CELL_SIZE * 6,
+    height: CELL_SIZE * 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
+  },
   redBase: { top: 0, left: 0, backgroundColor: '#e11d48' },
   greenBase: { top: 0, right: 0, backgroundColor: '#16a34a' },
   blueBase: { bottom: 0, left: 0, backgroundColor: '#0284c7' },
-  yellowBase: { bottom: 0, right: 0, backgroundColor: '#facc15' },
-  baseInnerWhite: { width: '74%', height: '74%', backgroundColor: '#ffffff', borderRadius: 6, padding: 8, justifyContent: 'space-between' },
-  pocketRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  basePocket: { width: CELL_SIZE * 1.5, height: CELL_SIZE * 1.5, borderRadius: (CELL_SIZE * 1.5) / 2, backgroundColor: '#ffffff', borderWidth: 3 },
-  playerLabel: { position: 'absolute', color: '#000000', fontWeight: 'bold', fontSize: 13 },
-  playerLabelHorizontal: { bottom: 4 },
-  playerLabelRotated: { left: -14, top: '40%', transform: [{ rotate: '-90deg' }] },
-
-  centerHome: { width: CELL_SIZE * 3, height: CELL_SIZE * 3, top: CELL_SIZE * 6, left: CELL_SIZE * 6, position: 'absolute', overflow: 'hidden' },
-  triRed: { position: 'absolute', left: 0, top: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#e11d48' },
-  triGreen: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#16a34a' },
-  triYellow: { position: 'absolute', right: 0, top: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: '#facc15' },
-  triBlue: { position: 'absolute', bottom: 0, left: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#0284c7' },
-
-  cell: { width: CELL_SIZE, height: CELL_SIZE, position: 'absolute', borderWidth: 0.5, borderColor: '#94a3b8', justifyContent: 'center', alignItems: 'center' },
-  starText: { color: '#000000', fontSize: 16, fontWeight: 'bold' },
-  arrowText: { color: '#e11d48', fontSize: 13, fontWeight: 'bold' },
-
-  tokenWrapper: { width: CELL_SIZE, height: CELL_SIZE + 6, position: 'absolute', justifyContent: 'center', alignItems: 'center', zIndex: 20 },
-  pinWrapper: { width: 22, height: 28, alignItems: 'center', justifyContent: 'flex-start' },
-  pinHead: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  pinCenterDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#ffffff' },
-  pinPointer: { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -2 },
-
-  diceBox: { width: 42, height: 40, backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1.5, borderColor: '#cbd5e1', padding: 4, justifyContent: 'center', alignItems: 'center' },
-  diceDot: { width: 6.5, height: 6.5, borderRadius: 3.5, backgroundColor: '#000000', margin: 1 },
-  diceCenter: { justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
-  diceRowSpace: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', height: '100%' },
-  diceCol: { justifyContent: 'space-between', alignItems: 'center' },
+  yellowBase: { bottom: 0, right: 0, backgroundColor: '#eab308' },
+  baseInnerWhite: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    justifyContent: 'space-around',
+    padding: 8,
+  },
+  pocketRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  basePocket: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
+    backgroundColor: '#f8fafc',
+  },
+  playerLabel: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0f172a',
+  },
+  playerLabelHorizontal: {
+    bottom: 2,
+  },
+  playerLabelRotated: {
+    left: -12,
+    transform: [{ rotate: '-90deg' }],
+  },
+  centerHome: {
+    position: 'absolute',
+    top: CELL_SIZE * 6,
+    left: CELL_SIZE * 6,
+    width: CELL_SIZE * 3,
+    height: CELL_SIZE * 3,
+    overflow: 'hidden',
+  },
+  triRed: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 0,
+    height: 0,
+    borderTopWidth: (CELL_SIZE * 3) / 2,
+    borderBottomWidth: (CELL_SIZE * 3) / 2,
+    borderLeftWidth: (CELL_SIZE * 3) / 2,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: '#e11d48',
+  },
+  triGreen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: (CELL_SIZE * 3) / 2,
+    borderRightWidth: (CELL_SIZE * 3) / 2,
+    borderTopWidth: (CELL_SIZE * 3) / 2,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#16a34a',
+  },
+  triYellow: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 0,
+    height: 0,
+    borderTopWidth: (CELL_SIZE * 3) / 2,
+    borderBottomWidth: (CELL_SIZE * 3) / 2,
+    borderRightWidth: (CELL_SIZE * 3) / 2,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: '#eab308',
+  },
+  triBlue: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: (CELL_SIZE * 3) / 2,
+    borderRightWidth: (CELL_SIZE * 3) / 2,
+    borderBottomWidth: (CELL_SIZE * 3) / 2,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#0284c7',
+  },
+  tokenWrapper: {
+    position: 'absolute',
+    width: CELL_SIZE,
+    height: CELL_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
 });
