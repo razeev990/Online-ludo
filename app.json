@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Ludo Supreme 3D",
+    "slug": "online-ludo",
+    "owner": "razeev99091",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1d4ed8"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#1d4ed8"
+      },
+      "package": "com.razeev990.onlineludo"
+    },
+    "web": {
+      "favicon": "./icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7afcea88-da77-4086-b018-f5ee803b90dc"
+      }
+    }
+  }
+}
