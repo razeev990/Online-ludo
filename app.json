@@ -2,6 +2,7 @@
   "expo": {
     "name": "Ludo Supreme 3D",
     "slug": "online-ludo",
+    "owner": "razeev99091",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./icon.png",
@@ -26,6 +27,11 @@
     },
     "web": {
       "favicon": "./icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7afcea88-da77-4086-b818-f5ea883b99dc"
+      }
     }
   }
 }
