@@ -1,6 +1,6 @@
 workflows:
   android-workflow:
-    name: Android APK Build
+    name: Android Release APK Build
     max_build_duration: 30
     instance_type: mac_mini_m1
     environment:
@@ -13,13 +13,13 @@ workflows:
       - name: Expo Prebuild
         script: |
           npx expo prebuild --platform android --clean
-      - name: Build Android APK
+      - name: Build Standalone Release APK
         script: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
     artifacts:
-      - android/app/build/outputs/apk/debug/*.apk
+      - android/app/build/outputs/apk/release/*.apk
     publishing:
       email:
         recipients:
@@ -27,4 +27,3 @@ workflows:
         notify:
           success: true
           failure: true
-          
