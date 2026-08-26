@@ -13,7 +13,8 @@ import {
   StatusBar,
   ScrollView,
   Modal,
-  Image
+  Image,
+  Switch
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
@@ -58,75 +59,51 @@ const START_INDEX = { RED: 0, GREEN: 13, YELLOW: 26, BLUE: 39 };
 const SAFE_INDEXES = [0, 8, 13, 21, 26, 34, 39, 47];
 const ALL_COLORS = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
+// Cartoon Avatar Collections (Male / Female / Royale)
+const AVATAR_DATA = {
+  MALE: [
+    { id: 'm1', label: '👦 Boy', icon: '👦' },
+    { id: 'm2', label: '🧔 Hero', icon: '🧔' },
+    { id: 'm3', label: '🧑‍🦱 Cool Guy', icon: '🧑‍🦱' },
+    { id: 'm4', label: '👨‍🦰 Smart', icon: '👨‍🦰' },
+    { id: 'm5', label: '🤠 Cowboy', icon: '🤠' },
+    { id: 'm6', label: '😎 Shades', icon: '😎' },
+  ],
+  FEMALE: [
+    { id: 'f1', label: '👧 Girl', icon: '👧' },
+    { id: 'f2', label: '👩‍🦰 Redhead', icon: '👩‍🦰' },
+    { id: 'f3', label: '👱‍♀️ Blonde', icon: '👱‍♀️' },
+    { id: 'f4', label: '👩‍🦱 Curly', icon: '👩‍🦱' },
+    { id: 'f5', label: '👒 Cute Cap', icon: '👒' },
+    { id: 'f6', label: '👸 Princess', icon: '👸' },
+  ],
+  ROYALE: [
+    { id: 'r1', label: '👑 King', icon: '👑' },
+    { id: 'r2', label: '🦁 Lion King', icon: '🦁' },
+    { id: 'r3', label: '🐯 Tiger Pro', icon: '🐯' },
+    { id: 'r4', label: '⚡ Flash', icon: '⚡' },
+    { id: 'r5', label: '🐉 Dragon', icon: '🐉' },
+    { id: 'r6', label: '💎 Diamond', icon: '💎' },
+  ]
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const playSound = async (type) => {
-  try {
-    let soundAsset;
-    if (type === 'dice') soundAsset = require('./assets/sounds/dice.mp3');
-    else if (type === 'move') soundAsset = require('./assets/sounds/move.mp3');
-    else if (type === 'cut') soundAsset = require('./assets/sounds/cut.mp3');
-    else if (type === 'win') soundAsset = require('./assets/sounds/win.mp3');
-
-    if (soundAsset) {
-      const { sound } = await Audio.Sound.createAsync(soundAsset);
-      await sound.playAsync();
-    }
-  } catch (error) {}
-};
-
-const DiceFace = ({ value }) => {
-  const dot = <View style={styles.diceDot} />;
-  const empty = <View style={[styles.diceDot, { opacity: 0 }]} />;
-
-  const getDots = () => {
-    switch (value) {
-      case 1: return <View style={styles.diceCenter}>{dot}</View>;
-      case 2: return <View style={styles.diceRowSpace}><View style={styles.diceCol}>{dot}{empty}</View><View style={styles.diceCol}>{empty}{dot}</View></View>;
-      case 3: return <View style={styles.diceRowSpace}><View style={styles.diceCol}>{dot}{empty}{empty}</View><View style={styles.diceCol}>{empty}{dot}{empty}</View><View style={styles.diceCol}>{empty}{empty}{dot}</View></View>;
-      case 4: return <View style={styles.diceRowSpace}><View style={styles.diceCol}>{dot}{dot}</View><View style={styles.diceCol}>{dot}{dot}</View></View>;
-      case 5: return <View style={styles.diceRowSpace}><View style={styles.diceCol}>{dot}{empty}{dot}</View><View style={styles.diceCol}>{empty}{dot}{empty}</View><View style={styles.diceCol}>{dot}{empty}{dot}</View></View>;
-      case 6: return <View style={styles.diceRowSpace}><View style={styles.diceCol}>{dot}{dot}{dot}</View><View style={styles.diceCol}>{dot}{dot}{dot}</View></View>;
-      default: return <View style={styles.diceCenter}>{dot}</View>;
-    }
-  };
-
-  return <View style={styles.diceBox}>{getDots()}</View>;
-};
-
-const PinToken = ({ colorHex, shadowColor }) => (
-  <View style={styles.pinWrapper}>
-    <View style={[styles.pinHead, { backgroundColor: colorHex, shadowColor: shadowColor }]}>
-      <View style={styles.pinInnerGlow} />
-      <View style={styles.pinCenterDot} />
-    </View>
-    <View style={[styles.pinPointer, { borderTopColor: colorHex }]} />
-  </View>
-);
-
-const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
-  <Animated.View
-    style={[
-      styles.floatingArrowContainer,
-      isTopRow ? styles.arrowTopPos : styles.arrowBottomPos,
-      { transform: [{ translateY: bounceAnim }] }
-    ]}
-  >
-    <View style={styles.arrowIconBubble}>
-      <Text style={styles.arrowIconText}>{isTopRow ? '▼' : '▲'}</Text>
-    </View>
-  </Animated.View>
-);
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [authMode, setAuthMode] = useState('LOGIN'); // 'LOGIN' | 'SIGNUP' | 'FORGOT'
+  const [authMode, setAuthMode] = useState('LOGIN');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
 
-  const [aboutModal, setAboutModal] = useState(false);
+  // Settings & Avatar State
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [avatarModal, setAvatarModal] = useState(false);
+  const [avatarCategory, setAvatarCategory] = useState('FEMALE'); // 'MALE' | 'FEMALE' | 'ROYALE'
+  const [userAvatar, setUserAvatar] = useState('👸');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   const [friendsModal, setFriendsModal] = useState(false);
   const [friendsList, setFriendsList] = useState([
     { id: '101', name: 'Rohan_Gamer', online: true },
@@ -140,6 +117,7 @@ export default function App() {
   const [passPlayModal, setPassPlayModal] = useState(false);
   const [hybridTeamModal, setHybridTeamModal] = useState(false);
   const [onlineScreen, setOnlineScreen] = useState(false);
+  const [onlineLobbyModal, setOnlineLobbyModal] = useState(false);
   
   const [playType, setPlayType] = useState('SOLO');
   const [selectedPlayerCount, setSelectedPlayerCount] = useState(2);
@@ -147,6 +125,8 @@ export default function App() {
   const [onlinePlayerCount, setOnlinePlayerCount] = useState(2);
   const [friendlyKill, setFriendlyKill] = useState(false);
   const [activeColors, setActiveColors] = useState(['BLUE', 'GREEN']);
+
+  const [roomPlayers, setRoomPlayers] = useState({});
 
   const [playerSlots, setPlayerSlots] = useState({
     BLUE: 'LOCAL',
@@ -175,6 +155,23 @@ export default function App() {
   const spinAnim = useRef(new Animated.Value(0)).current;
   const diceBounceAnim = useRef(new Animated.Value(1)).current;
   const arrowBounceAnim = useRef(new Animated.Value(0)).current;
+
+  // Sound Engine
+  const playSound = async (type) => {
+    if (!soundEnabled) return;
+    try {
+      let soundAsset;
+      if (type === 'dice') soundAsset = require('./assets/sounds/dice.mp3');
+      else if (type === 'move') soundAsset = require('./assets/sounds/move.mp3');
+      else if (type === 'cut') soundAsset = require('./assets/sounds/cut.mp3');
+      else if (type === 'win') soundAsset = require('./assets/sounds/win.mp3');
+
+      if (soundAsset) {
+        const { sound } = await Audio.Sound.createAsync(soundAsset);
+        await sound.playAsync();
+      }
+    } catch (error) {}
+  };
 
   useEffect(() => {
     Animated.loop(
@@ -212,13 +209,26 @@ export default function App() {
     const restoreSession = async () => {
       try {
         const saved = await AsyncStorage.getItem('@ludo_supreme_user');
-        if (saved) {
-          setCurrentUser(JSON.parse(saved));
-        }
+        const savedSound = await AsyncStorage.getItem('@ludo_sound_setting');
+        const savedAvatar = await AsyncStorage.getItem('@ludo_user_avatar');
+
+        if (saved) setCurrentUser(JSON.parse(saved));
+        if (savedSound !== null) setSoundEnabled(JSON.parse(savedSound));
+        if (savedAvatar) setUserAvatar(savedAvatar);
       } catch (err) {}
     };
     restoreSession();
   }, []);
+
+  const toggleSound = async (val) => {
+    setSoundEnabled(val);
+    await AsyncStorage.setItem('@ludo_sound_setting', JSON.stringify(val));
+  };
+
+  const selectAvatar = async (avatar) => {
+    setUserAvatar(avatar);
+    await AsyncStorage.setItem('@ludo_user_avatar', avatar);
+  };
 
   const handleAuthSubmit = async () => {
     if (!emailInput.trim()) {
@@ -261,7 +271,7 @@ export default function App() {
         }
         const matched = dbUsers[userKey];
         if (!matched || matched.password !== passwordInput.trim()) {
-          Alert.alert('Login Failed', 'Invalid credentials or account does not exist. Please sign up first.');
+          Alert.alert('Login Failed', 'Invalid credentials or account does not exist.');
           return;
         }
 
@@ -279,7 +289,7 @@ export default function App() {
 
         dbUsers[userKey].password = newPasswordInput.trim();
         await AsyncStorage.setItem('@ludo_registered_users', JSON.stringify(dbUsers));
-        Alert.alert('Password Updated', 'Your password has been reset successfully. Please login with your new password.');
+        Alert.alert('Password Updated', 'Your password has been reset successfully.');
         setPasswordInput('');
         setNewPasswordInput('');
         setAuthMode('LOGIN');
@@ -332,7 +342,7 @@ export default function App() {
 
   const sendFriendInvite = (friend) => {
     if (userWs.current && userWs.current.readyState === WebSocket.OPEN) {
-      const generatedRoom = Math.floor(1000 + Math.random() * 9000).toString();
+      const activeRoom = roomCode || Math.floor(1000 + Math.random() * 9000).toString();
       userWs.current.send(JSON.stringify({
         topic: `realtime:user_${friend.id}`,
         event: 'broadcast',
@@ -341,15 +351,11 @@ export default function App() {
           data: {
             fromName: currentUser.name,
             fromId: currentUser.playerId,
-            roomCode: generatedRoom,
+            roomCode: activeRoom,
           }
         },
         ref: 'inv_1'
       }));
-      setRoomCode(generatedRoom);
-      setMyColor('BLUE');
-      setActiveColors(['BLUE', 'GREEN']);
-      setGameMode('ONLINE');
       setFriendsModal(false);
       Alert.alert('Invite Sent', `Match invitation sent to ${friend.name}`);
     }
@@ -360,7 +366,8 @@ export default function App() {
     setRoomCode(incomingInvite.roomCode);
     setMyColor('GREEN');
     setActiveColors(['BLUE', 'GREEN']);
-    setGameMode('ONLINE');
+    setPlayType('SOLO');
+    setOnlineLobbyModal(true);
     setIncomingInvite(null);
   };
 
@@ -380,9 +387,10 @@ export default function App() {
   };
 
   const startOnlineHost = () => {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     setRoomCode(code);
     setMyColor('BLUE');
+    
     let colors = ['BLUE', 'GREEN'];
     if (onlinePlayType === 'SOLO') {
       if (onlinePlayerCount === 2) colors = ['BLUE', 'GREEN'];
@@ -394,22 +402,39 @@ export default function App() {
     
     setActiveColors(colors);
     setPlayType(onlinePlayType);
-    setGameMode('ONLINE');
+    setRoomPlayers({ BLUE: { name: currentUser.name, id: currentUser.playerId, avatar: userAvatar } });
     setOnlineScreen(false);
-    Alert.alert('Room Created!', `Room Code: ${code}`);
+    setOnlineLobbyModal(true);
   };
 
   const joinOnlineRoom = () => {
-    if (inputRoomCode.trim().length >= 3) {
-      setRoomCode(inputRoomCode.trim());
+    if (inputRoomCode.trim().length >= 4) {
+      const code = inputRoomCode.trim();
+      setRoomCode(code);
       setMyColor('GREEN');
       setActiveColors(['BLUE', 'GREEN']);
       setPlayType('SOLO');
-      setGameMode('ONLINE');
       setOnlineScreen(false);
+      setOnlineLobbyModal(true);
     } else {
       Alert.alert('Invalid Code', 'Please enter a valid room code');
     }
+  };
+
+  const startMatchFromLobby = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        topic: `realtime:room_${roomCode}`,
+        event: 'broadcast',
+        payload: {
+          type: 'START_MATCH',
+          data: { activeColors, playType }
+        },
+        ref: 'start_1'
+      }));
+    }
+    setOnlineLobbyModal(false);
+    setGameMode('ONLINE');
   };
 
   const resetGame = () => {
@@ -428,6 +453,8 @@ export default function App() {
     setPassPlayModal(false);
     setHybridTeamModal(false);
     setOnlineScreen(false);
+    setOnlineLobbyModal(false);
+    setRoomPlayers({});
     if (ws.current) ws.current.close();
   };
 
@@ -444,8 +471,9 @@ export default function App() {
              (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
   };
 
+  // Websocket Live Matchmaking & In-Game Sync
   useEffect(() => {
-    if ((gameMode !== 'ONLINE' && gameMode !== 'HYBRID') || !roomCode) return;
+    if ((gameMode !== 'ONLINE' && !onlineLobbyModal && gameMode !== 'HYBRID') || !roomCode) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
     ws.current = new WebSocket(wsUrl);
 
@@ -456,20 +484,43 @@ export default function App() {
         payload: {},
         ref: '1'
       }));
+
+      if (currentUser) {
+        ws.current.send(JSON.stringify({
+          topic: `realtime:room_${roomCode}`,
+          event: 'broadcast',
+          payload: {
+            type: 'PLAYER_JOINED',
+            data: { color: myColor, name: currentUser.name, id: currentUser.playerId, avatar: userAvatar }
+          },
+          ref: 'p_join'
+        }));
+      }
     };
 
     ws.current.onmessage = (e) => {
       try {
         const message = JSON.parse(e.data);
-        if (message.event === 'broadcast' && message.payload?.type === 'SYNC_GAME') {
-          const { newPawns, nextTurnIdx, updatedDices, rolled, winPlayer, syncedColors, syncedPlayType } = message.payload.data;
-          setPawns(newPawns);
-          setTurnIndex(nextTurnIdx);
-          setPlayerDices(updatedDices);
-          setHasRolled(rolled);
-          if (syncedColors) setActiveColors(syncedColors);
-          if (syncedPlayType) setPlayType(syncedPlayType);
-          if (winPlayer) setWinner(winPlayer);
+        if (message.event === 'broadcast') {
+          const type = message.payload?.type;
+          const data = message.payload?.data;
+
+          if (type === 'PLAYER_JOINED') {
+            setRoomPlayers(prev => ({ ...prev, [data.color]: { name: data.name, id: data.id, avatar: data.avatar } }));
+          } else if (type === 'START_MATCH') {
+            setActiveColors(data.activeColors);
+            setPlayType(data.playType);
+            setOnlineLobbyModal(false);
+            setGameMode('ONLINE');
+          } else if (type === 'SYNC_GAME') {
+            setPawns(data.newPawns);
+            setTurnIndex(data.nextTurnIdx);
+            setPlayerDices(data.updatedDices);
+            setHasRolled(data.rolled);
+            if (data.syncedColors) setActiveColors(data.syncedColors);
+            if (data.syncedPlayType) setPlayType(data.syncedPlayType);
+            if (data.winPlayer) setWinner(data.winPlayer);
+          }
         }
       } catch (err) {}
     };
@@ -477,7 +528,7 @@ export default function App() {
     return () => {
       if (ws.current) ws.current.close();
     };
-  }, [gameMode, roomCode]);
+  }, [gameMode, onlineLobbyModal, roomCode, userAvatar]);
 
   const sendMultiplayerSync = (newPawns, nextTurnIdx, updatedDices, rolled, winPlayer = null) => {
     if ((gameMode === 'ONLINE' || gameMode === 'HYBRID') && ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -521,7 +572,6 @@ export default function App() {
     return validIndexes;
   };
 
-  // Fixed Dice Roll Engine - Zero Post-Stop Value Change
   const rollDice = async (isBot = false) => {
     if (hasRolled || isMoving || isRolling || winner) return;
 
@@ -550,7 +600,6 @@ export default function App() {
       ])
     ]).start();
 
-    // Fast face swapping during animation
     const shuffleDelays = [60, 70, 90, 120];
     for (let delay of shuffleDelays) {
       const rand = Math.floor(Math.random() * 6) + 1;
@@ -558,7 +607,6 @@ export default function App() {
       await sleep(delay);
     }
 
-    // Set final number and freeze permanently
     const newDices = { ...playerDices, [currentTurn]: finalVal };
     setPlayerDices(prev => ({ ...prev, [currentTurn]: finalVal }));
     await sleep(200);
@@ -731,6 +779,7 @@ export default function App() {
       if (color === 'RED') return 'Team B (Red)';
       if (color === 'YELLOW') return 'Team B (Yellow)';
     } else {
+      if (roomPlayers[color]?.name) return roomPlayers[color].name;
       if (color === 'BLUE') return currentUser ? currentUser.name : 'Player 1';
       if (color === 'RED') return 'Player 2';
       if (color === 'GREEN') return selectedPlayerCount === 2 ? 'Player 2' : 'Player 3';
@@ -834,7 +883,7 @@ export default function App() {
     );
   };
 
-  // Auth Screen (Sign In / Sign Up / Forgot Password)
+  // Auth Screen
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -1039,7 +1088,7 @@ export default function App() {
               setPlayType('TEAM');
               setGameMode('HYBRID');
               setHybridTeamModal(false);
-              Alert.alert('Match Live!', `Room Code: ${code} (Share with remote players)`);
+              Alert.alert('Match Live!', `Room Code: ${code}`);
             }}>
               <Text style={styles.gold3DButtonText}>LAUNCH TEAM MATCH ➔</Text>
             </TouchableOpacity>
@@ -1106,6 +1155,183 @@ export default function App() {
     );
   }
 
+  // DYNAMIC ONLINE MATCHMAKING LOBBY
+  if (onlineLobbyModal) {
+    const isTeamMode = playType === 'TEAM';
+    const opponentColors = activeColors.filter(c => c !== 'BLUE');
+
+    return (
+      <SafeAreaView style={styles.matchmakingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#881337" />
+        
+        <View style={styles.matchLobbyHeader}>
+          <Text style={styles.matchLobbyTitle}>ONLINE MULTIPLAYER</Text>
+          <Text style={styles.matchFormatSub}>
+            {isTeamMode ? '🤝 2v2 TEAM BATTLE' : `👤 ${activeColors.length} PLAYERS INDIVIDUAL`}
+          </Text>
+        </View>
+
+        <View style={styles.matchCodeCard}>
+          <Text style={styles.matchCodeLabel}>Room Code : </Text>
+          <View style={styles.codePillBox}>
+            <Text style={styles.codePillText}>{roomCode}</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.shareCodeBtn}
+            onPress={() => Alert.alert('Room Code Copied', `Code: ${roomCode}`)}
+          >
+            <Text style={styles.shareCodeText}>📋 Copy</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.shareSubtitle}>Share this room code with friends to join</Text>
+
+        {isTeamMode ? (
+          <View style={styles.teamMatchLobbyWrap}>
+            <View style={styles.teamLobbyBoxA}>
+              <Text style={styles.teamLobbyTitleA}>🛡️ TEAM A (Blue + Green)</Text>
+              <View style={styles.teamSlotsRow}>
+                <View style={styles.playerSquareActive}>
+                  <Text style={{ fontSize: 32 }}>{userAvatar}</Text>
+                  <Text style={styles.slotPlayerNameText} numberOfLines={1}>{currentUser.name}</Text>
+                  <Text style={styles.slotRoleTagBlue}>HOST (BLUE)</Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[styles.slotInviteBox, roomPlayers['GREEN'] && styles.slotBoxFilledGreen]}
+                  onPress={() => !roomPlayers['GREEN'] && setFriendsModal(true)}
+                >
+                  {roomPlayers['GREEN'] ? (
+                    <>
+                      <Text style={{ fontSize: 32 }}>{roomPlayers['GREEN'].avatar || '🎮'}</Text>
+                      <Text style={styles.slotPlayerNameText} numberOfLines={1}>{roomPlayers['GREEN'].name}</Text>
+                      <Text style={styles.slotRoleTagGreen}>PARTNER</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.plusAvatarIcon}>🤝+</Text>
+                      <Text style={styles.inviteSlotLabel}>Invite Partner</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.vsGlowBanner}>
+              <Text style={styles.vsGlowText}>⚡ VS ⚡</Text>
+            </View>
+
+            <View style={styles.teamLobbyBoxB}>
+              <Text style={styles.teamLobbyTitleB}>⚔️ TEAM B (Red + Yellow)</Text>
+              <View style={styles.teamSlotsRow}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[styles.slotInviteBox, roomPlayers['RED'] && styles.slotBoxFilledRed]}
+                  onPress={() => !roomPlayers['RED'] && setFriendsModal(true)}
+                >
+                  {roomPlayers['RED'] ? (
+                    <>
+                      <Text style={{ fontSize: 32 }}>{roomPlayers['RED'].avatar || '🎮'}</Text>
+                      <Text style={styles.slotPlayerNameText} numberOfLines={1}>{roomPlayers['RED'].name}</Text>
+                      <Text style={styles.slotRoleTagRed}>OPPONENT</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.plusAvatarIcon}>⚔️+</Text>
+                      <Text style={styles.inviteSlotLabel}>Invite Enemy 1</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[styles.slotInviteBox, roomPlayers['YELLOW'] && styles.slotBoxFilledYellow]}
+                  onPress={() => !roomPlayers['YELLOW'] && setFriendsModal(true)}
+                >
+                  {roomPlayers['YELLOW'] ? (
+                    <>
+                      <Text style={{ fontSize: 32 }}>{roomPlayers['YELLOW'].avatar || '🎮'}</Text>
+                      <Text style={styles.slotPlayerNameText} numberOfLines={1}>{roomPlayers['YELLOW'].name}</Text>
+                      <Text style={styles.slotRoleTagYellow}>OPPONENT</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.plusAvatarIcon}>⚔️+</Text>
+                      <Text style={styles.inviteSlotLabel}>Invite Enemy 2</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.soloMatchLobbyWrap}>
+            <View style={styles.hostProfileBox}>
+              <View style={styles.hostAvatarSquare}>
+                <Text style={{ fontSize: 44 }}>{userAvatar}</Text>
+              </View>
+              <Text style={styles.hostNameText}>{currentUser.name}</Text>
+              <Text style={styles.hostBadgeText}>ROOM HOST (BLUE)</Text>
+            </View>
+
+            <View style={styles.vsGlowBanner}>
+              <Text style={styles.vsGlowText}>⚡ VS ⚡</Text>
+            </View>
+
+            <View style={styles.opponentSlotsRow}>
+              {opponentColors.map((colorKey) => {
+                const playerJoined = roomPlayers[colorKey];
+                return (
+                  <TouchableOpacity
+                    key={colorKey}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.slotInviteBox,
+                      playerJoined && { borderColor: getTurnColorHex(colorKey), backgroundColor: 'rgba(0,0,0,0.4)' }
+                    ]}
+                    onPress={() => !playerJoined && setFriendsModal(true)}
+                  >
+                    {playerJoined ? (
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ fontSize: 30 }}>{playerJoined.avatar || '🎮'}</Text>
+                        <Text style={styles.joinedSlotName} numberOfLines={1}>{playerJoined.name}</Text>
+                        <Text style={[styles.joinedSlotTag, { color: getTurnColorHex(colorKey) }]}>READY</Text>
+                      </View>
+                    ) : (
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={styles.plusAvatarIcon}>👤+</Text>
+                        <Text style={styles.inviteSlotLabel}>Tap to Invite</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.matchBottomActions}>
+          <TouchableOpacity 
+            activeOpacity={0.85} 
+            style={styles.startMatchGoldBtn} 
+            onPress={startMatchFromLobby}
+          >
+            <Text style={styles.startMatchGoldText}>START MATCH NOW ➔</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            activeOpacity={0.85} 
+            style={styles.cancelMatchBtn} 
+            onPress={() => { setOnlineLobbyModal(false); resetGame(); }}
+          >
+            <Text style={styles.cancelMatchText}>✕ Cancel Match</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Friends Squad Modal
   if (friendsModal) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -1155,32 +1381,155 @@ export default function App() {
   // 3D ISOMETRIC DASHBOARD
   if (!gameMode) {
     return (
-      <SafeAreaView style={styles.royaleContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
+      <View style={styles.dashboardContainer}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-        {/* 3D Render Background Layer */}
-        <View style={StyleSheet.absoluteFill}>
-          <Image
-            source={require('./lobby_bg.png')}
-            style={styles.lobbyBgImage}
-            resizeMode="cover"
-          />
-        </View>
+        <Image
+          source={require('./lobby_bg.png')}
+          style={styles.lobbyBgImage}
+          resizeMode="cover"
+        />
 
-        {aboutModal && (
-          <Modal transparent animationType="fade" visible={aboutModal}>
+        {/* SETTINGS MODAL */}
+        {settingsModal && (
+          <Modal transparent animationType="slide" visible={settingsModal}>
             <View style={styles.inviteModalOverlay}>
-              <View style={styles.glassCard}>
-                <Text style={styles.cardHeading}>ℹ️ ABOUT APP</Text>
-                <View style={styles.aboutCardBox}>
-                  <Text style={styles.aboutGoldTitle}>LUDO SUPREME 3D</Text>
-                  <Text style={styles.aboutVersionText}>Version: 1.0.0 (Royale Edition)</Text>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.aboutCreatorText}>App created by Rajeev Kumar sah</Text>
-                  <Text style={styles.aboutContactText}>Gmail - razeevsah@gmail.com</Text>
+              <View style={[styles.glassCard, { maxHeight: '90%' }]}>
+                <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 10 }}>
+                  <Text style={styles.cardHeading}>⚙️ GAME SETTINGS</Text>
+
+                  {/* Profile Section with Avatar Click */}
+                  <View style={styles.settingsSectionCard}>
+                    <Text style={styles.settingsSectionTitle}>👤 USER PROFILE</Text>
+                    
+                    <TouchableOpacity activeOpacity={0.8} style={styles.profileBigAvatarWrap} onPress={() => setAvatarModal(true)}>
+                      <Text style={{ fontSize: 48 }}>{userAvatar}</Text>
+                      <View style={styles.editAvatarBadge}><Text style={{ fontSize: 10 }}>✏️ Change</Text></View>
+                    </TouchableOpacity>
+
+                    <View style={styles.infoLineRow}>
+                      <Text style={styles.infoFieldLabel}>Username :</Text>
+                      <Text style={styles.infoFieldValue}>{currentUser.name}</Text>
+                    </View>
+
+                    <View style={styles.infoLineRow}>
+                      <Text style={styles.infoFieldLabel}>Gmail ID :</Text>
+                      <Text style={styles.infoFieldValue} numberOfLines={1}>{currentUser.email}</Text>
+                    </View>
+
+                    <View style={styles.infoLineRow}>
+                      <Text style={styles.infoFieldLabel}>Player ID :</Text>
+                      <Text style={styles.infoFieldValue}>#{currentUser.playerId || '9575'}</Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.avatarPickerTriggerBtn} onPress={() => setAvatarModal(true)}>
+                      <Text style={styles.avatarPickerTriggerText}>🎭 Select Cartoon Profile Picture ➔</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Sound Section */}
+                  <View style={styles.settingsSectionCard}>
+                    <Text style={styles.settingsSectionTitle}>🔊 AUDIO SETTINGS</Text>
+                    <View style={styles.soundToggleRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 22, marginRight: 8 }}>{soundEnabled ? '🔊' : '🔇'}</Text>
+                        <Text style={styles.soundLabelText}>Game Sounds & FX</Text>
+                      </View>
+                      <Switch
+                        trackColor={{ false: '#475569', true: '#10b981' }}
+                        thumbColor={soundEnabled ? '#ffffff' : '#94a3b8'}
+                        onValueChange={toggleSound}
+                        value={soundEnabled}
+                      />
+                    </View>
+                  </View>
+
+                  {/* About Section */}
+                  <View style={styles.settingsSectionCard}>
+                    <Text style={styles.settingsSectionTitle}>ℹ️ ABOUT GAME</Text>
+                    <Text style={styles.aboutGoldTitle}>LUDO SUPREME 3D</Text>
+                    <Text style={styles.aboutVersionText}>Version: 1.0.0 (Royale Edition)</Text>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.aboutCreatorText}>App created by Rajeev Kumar sah</Text>
+                    <Text style={styles.aboutContactText}>Gmail - razeevsah@gmail.com</Text>
+                  </View>
+
+                  <TouchableOpacity style={[styles.gold3DButton, { width: '100%', marginTop: 12 }]} onPress={() => setSettingsModal(false)}>
+                    <Text style={styles.gold3DButtonText}>SAVE & CLOSE</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {/* SELECT PROFILE PICTURE MODAL (MALE / FEMALE / ROYALE) */}
+        {avatarModal && (
+          <Modal transparent animationType="fade" visible={avatarModal}>
+            <View style={styles.inviteModalOverlay}>
+              <View style={styles.avatarSelectionCard}>
+                
+                {/* Top Preview Bar */}
+                <View style={styles.avatarPreviewTopBox}>
+                  <View style={styles.avatarPreviewCircle}>
+                    <Text style={{ fontSize: 36 }}>{userAvatar}</Text>
+                  </View>
+                  <View style={styles.avatarPreviewNamePlank}>
+                    <Text style={styles.avatarPreviewNameText}>{currentUser.name}</Text>
+                  </View>
                 </View>
-                <TouchableOpacity style={[styles.gold3DButton, { marginTop: 14 }]} onPress={() => setAboutModal(false)}>
-                  <Text style={styles.gold3DButtonText}>CLOSE</Text>
+
+                {/* Male / Female / Royale Tabs */}
+                <View style={styles.avatarCategoryRow}>
+                  <TouchableOpacity 
+                    style={[styles.avatarTabBtn, avatarCategory === 'MALE' && styles.avatarTabActiveMale]} 
+                    onPress={() => setAvatarCategory('MALE')}
+                  >
+                    <Text style={styles.avatarTabText}>👦 Male</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.avatarTabBtn, avatarCategory === 'FEMALE' && styles.avatarTabActiveFemale]} 
+                    onPress={() => setAvatarCategory('FEMALE')}
+                  >
+                    <Text style={styles.avatarTabText}>👧 Female</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.avatarTabBtn, avatarCategory === 'ROYALE' && styles.avatarTabActiveRoyale]} 
+                    onPress={() => setAvatarCategory('ROYALE')}
+                  >
+                    <Text style={styles.avatarTabText}>👑 Special</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.selectPicHeading}>SELECT PROFILE PICTURE</Text>
+
+                {/* Avatar Grid */}
+                <View style={styles.avatarGridContainer}>
+                  {AVATAR_DATA[avatarCategory].map((item) => {
+                    const isSelected = userAvatar === item.icon;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        activeOpacity={0.7}
+                        style={[styles.avatarGridTile, isSelected && styles.avatarGridTileSelected]}
+                        onPress={() => selectAvatar(item.icon)}
+                      >
+                        <Text style={{ fontSize: 38 }}>{item.icon}</Text>
+                        <Text style={styles.avatarTileLabel} numberOfLines={1}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Confirm Button */}
+                <TouchableOpacity 
+                  activeOpacity={0.85} 
+                  style={[styles.gold3DButton, { width: '100%', marginTop: 14 }]} 
+                  onPress={() => setAvatarModal(false)}
+                >
+                  <Text style={styles.gold3DButtonText}>CONFIRM PICTURE ➔</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1200,33 +1549,49 @@ export default function App() {
           </Modal>
         )}
 
-        {/* Top Floating Control Bar */}
-        <View style={styles.topTransparentBar}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setAboutModal(true)}>
-              <Text style={{ fontSize: 16 }}>ℹ️</Text>
+        <SafeAreaView style={styles.topHeaderOverlay}>
+          <View style={styles.topLeftProfileWrap}>
+            <Text style={styles.headerUserName} numberOfLines={1}>
+              {currentUser.name}
+            </Text>
+            <Text style={styles.headerUserCoins}>
+              🪙 {currentUser.coins.toLocaleString()} Coins
+            </Text>
+          </View>
+
+          <View style={styles.topRightBtnsWrap}>
+            <TouchableOpacity activeOpacity={0.7} style={styles.settingTouchBtn} onPress={() => setSettingsModal(true)}>
+              <Text style={styles.settingBtnText}>⚙️</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setFriendsModal(true)}>
-              <Text style={styles.actionBtnText}>👥 Friends</Text>
+
+            <TouchableOpacity activeOpacity={0.7} style={styles.friendsTouchBtn} onPress={() => setFriendsModal(true)}>
+              <Text style={styles.friendsBtnText}>👥 Friends</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.headerActionBtn, { backgroundColor: '#ef4444' }]} onPress={handleLogout}>
-              <Text style={styles.actionBtnText}>✕</Text>
+
+            <TouchableOpacity activeOpacity={0.7} style={styles.logoutTouchBtn} onPress={handleLogout}>
+              <Text style={styles.logoutBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
+        </SafeAreaView>
+
+        <View style={styles.centerCrownPlankWrap}>
+          <Text style={styles.centerPlankName} numberOfLines={1}>
+            {currentUser.name}
+          </Text>
+          <Text style={styles.centerPlankCoins}>
+            🪙 {currentUser.coins.toLocaleString()} Coins
+          </Text>
         </View>
 
-        {/* Dynamic User Profile Overlay */}
-        <View style={styles.liveUserBadgeCenter}>
-          <Text style={styles.liveUserNameText}>👑 {currentUser.name}</Text>
-          <Text style={styles.liveUserCoinsText}>🪙 {currentUser.coins.toLocaleString()} Coins</Text>
-          <Text style={styles.liveUserIdText}>ID: {currentUser.playerId || '9575'} | Choose Arena</Text>
+        <View style={styles.centerIdSubtitleWrap}>
+          <Text style={styles.centerIdSubtitleText}>
+            ID: {currentUser.playerId || '9575'} | Choose Arena
+          </Text>
         </View>
 
-        {/* Interactive 3D Island Hotspots */}
-        <View style={styles.touchPodiumGrid}>
-          {/* Top-Left: Vs Computer */}
+        <View style={styles.podiumTouchLayer}>
           <TouchableOpacity
-            activeOpacity={0.6}
+            activeOpacity={0.4}
             style={styles.podiumTouchSpot}
             onPress={() => {
               setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
@@ -1234,37 +1599,27 @@ export default function App() {
               setGameMode('BOT');
             }}
           />
-
-          {/* Top-Right: Pass & Play */}
           <TouchableOpacity
-            activeOpacity={0.6}
+            activeOpacity={0.4}
             style={styles.podiumTouchSpot}
             onPress={() => setPassPlayModal(true)}
           />
-
-          {/* Bottom-Left: Team Up */}
           <TouchableOpacity
-            activeOpacity={0.6}
+            activeOpacity={0.4}
             style={styles.podiumTouchSpot}
             onPress={() => setHybridTeamModal(true)}
           />
-
-          {/* Bottom-Right: Online Arena */}
           <TouchableOpacity
-            activeOpacity={0.6}
+            activeOpacity={0.4}
             style={styles.podiumTouchSpot}
             onPress={() => setOnlineScreen(true)}
           />
         </View>
-
-        {/* Bottom Footer */}
-        <View style={styles.bottomFooterPill}>
-          <Text style={styles.footerPillText}>★ PERMANENT ACCOUNT • CLOUD BACKUP ★</Text>
-        </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
+  // IN-GAME BOARD SCREEN
   return (
     <SafeAreaView style={styles.mainContainer}>
       <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
@@ -1272,7 +1627,7 @@ export default function App() {
 
       <View style={styles.headerBar}>
         <TouchableOpacity style={styles.exitBtn} onPress={handleExitGame}><Text style={styles.exitBtnText}>✕ Exit</Text></TouchableOpacity>
-        <View style={styles.playerInfoTop}><Text style={styles.playerInfoTopText}>{playType === 'TEAM' ? '🤝 TEAM A vs TEAM B' : `👑 ${currentUser.name}`}</Text></View>
+        <View style={styles.playerInfoTop}><Text style={styles.playerInfoTopText}>{playType === 'TEAM' ? '🤝 TEAM A vs TEAM B' : `${userAvatar} ${currentUser.name}`}</Text></View>
         {(gameMode === 'ONLINE' || gameMode === 'HYBRID') && (<View style={styles.roomTag}><Text style={styles.roomTagText}>Room: {roomCode}</Text></View>)}
       </View>
 
@@ -1316,16 +1671,112 @@ export default function App() {
 
 const styles = StyleSheet.create({
   royaleContainer: { flex: 1, backgroundColor: '#0a0f1d', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16 },
-  lobbyBgImage: { width: '100%', height: '100%', position: 'absolute' },
-  topTransparentBar: { width: '100%', flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 4, paddingTop: 4, zIndex: 20 },
-  headerActionBtn: { backgroundColor: 'rgba(15, 23, 42, 0.75)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginLeft: 8, borderWidth: 1, borderColor: '#eab308' },
-  actionBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
-  liveUserBadgeCenter: { alignItems: 'center', marginTop: 85, zIndex: 10 },
-  liveUserNameText: { color: '#ffffff', fontSize: 16, fontWeight: '900', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
-  liveUserCoinsText: { color: '#facc15', fontSize: 14, fontWeight: '800', marginTop: 2 },
-  liveUserIdText: { color: '#cbd5e1', fontSize: 11, fontWeight: '600', marginTop: 48 },
-  touchPodiumGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', height: 320, paddingHorizontal: 12, marginTop: 20 },
-  podiumTouchSpot: { width: '48%', height: 145, borderRadius: 24 },
+  dashboardContainer: { flex: 1, backgroundColor: '#0a0f1d', width: '100%', height: '100%' },
+  lobbyBgImage: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  topHeaderOverlay: { position: 'absolute', top: 38, left: 14, right: 14, height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 30 },
+  topLeftProfileWrap: { marginLeft: 62, justifyContent: 'center' },
+  headerUserName: { color: '#ffffff', fontSize: 14, fontWeight: '900', maxWidth: 120, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  headerUserCoins: { color: '#facc15', fontSize: 12, fontWeight: '800', marginTop: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  topRightBtnsWrap: { flexDirection: 'row', alignItems: 'center', marginRight: 4 },
+  settingTouchBtn: { backgroundColor: 'rgba(15, 23, 42, 0.85)', borderWidth: 1, borderColor: '#facc15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginRight: 6 },
+  settingBtnText: { fontSize: 14 },
+  friendsTouchBtn: { backgroundColor: '#0284c7', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6, borderWidth: 1, borderColor: '#38bdf8' },
+  friendsBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 11 },
+  logoutTouchBtn: { backgroundColor: '#ef4444', borderRadius: 8, width: 28, height: 28, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fca5a5' },
+  logoutBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
+  
+  centerCrownPlankWrap: { position: 'absolute', top: 154, alignSelf: 'center', alignItems: 'center', zIndex: 20 },
+  centerPlankName: { color: '#ffffff', fontSize: 16, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4 },
+  centerPlankCoins: { color: '#facc15', fontSize: 13, fontWeight: '800', marginTop: 2, textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4 },
+  centerIdSubtitleWrap: { position: 'absolute', top: 322, alignSelf: 'center', zIndex: 20 },
+  centerIdSubtitleText: { color: '#cbd5e1', fontSize: 11, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  podiumTouchLayer: { position: 'absolute', top: '41%', left: '4%', right: '4%', height: 360, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between', zIndex: 20 },
+  podiumTouchSpot: { width: '47%', height: 165, borderRadius: 24 },
+  
+  // SETTINGS MODAL STYLES
+  settingsSectionCard: { width: '100%', backgroundColor: '#0a0f1d', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#334155', marginVertical: 6, alignItems: 'center' },
+  settingsSectionTitle: { color: '#38bdf8', fontSize: 12, fontWeight: '900', letterSpacing: 1, marginBottom: 8, alignSelf: 'flex-start' },
+  profileBigAvatarWrap: { width: 75, height: 75, borderRadius: 38, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', borderWidth: 2.5, borderColor: '#facc15', marginBottom: 8, position: 'relative' },
+  editAvatarBadge: { position: 'absolute', bottom: -4, backgroundColor: '#0284c7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, borderWidth: 1, borderColor: '#ffffff' },
+  infoLineRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: '#1e293b' },
+  infoFieldLabel: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
+  infoFieldValue: { color: '#ffffff', fontSize: 12, fontWeight: 'bold', maxWidth: 170 },
+  avatarPickerTriggerBtn: { marginTop: 10, backgroundColor: '#1e293b', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#facc15', width: '100%', alignItems: 'center' },
+  avatarPickerTriggerText: { color: '#facc15', fontWeight: 'bold', fontSize: 12 },
+  soundToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingVertical: 4 },
+  soundLabelText: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
+  aboutGoldTitle: { color: '#facc15', fontSize: 16, fontWeight: '900', marginTop: 2 },
+  aboutVersionText: { color: '#94a3b8', fontSize: 11, marginBottom: 6 },
+  aboutCreatorText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
+  aboutContactText: { color: '#38bdf8', fontSize: 12, fontWeight: '600', marginTop: 2 },
+
+  // SELECT AVATAR MODAL STYLES (MATCHES USER IMAGE)
+  avatarSelectionCard: { width: '95%', backgroundColor: '#022144', borderRadius: 24, padding: 14, borderWidth: 3, borderColor: '#facc15', alignItems: 'center', elevation: 12 },
+  avatarPreviewTopBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 12 },
+  avatarPreviewCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#1e3a8a', borderWidth: 2, borderColor: '#38bdf8', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  avatarPreviewNamePlank: { backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#94a3b8', borderStyle: 'dashed', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8, minWidth: 150, alignItems: 'center' },
+  avatarPreviewNameText: { color: '#000000', fontWeight: '900', fontSize: 15 },
+  avatarCategoryRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 10 },
+  avatarTabBtn: { flex: 1, backgroundColor: '#0f172a', paddingVertical: 8, alignItems: 'center', borderRadius: 10, marginHorizontal: 3, borderWidth: 1, borderColor: '#334155' },
+  avatarTabActiveMale: { backgroundColor: '#0284c7', borderColor: '#38bdf8' },
+  avatarTabActiveFemale: { backgroundColor: '#db2777', borderColor: '#f472b6' },
+  avatarTabActiveRoyale: { backgroundColor: '#ca8a04', borderColor: '#facc15' },
+  avatarTabText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
+  selectPicHeading: { color: '#facc15', fontSize: 16, fontWeight: '900', letterSpacing: 1, marginVertical: 6 },
+  avatarGridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%' },
+  avatarGridTile: { width: '31%', height: 85, backgroundColor: '#0a192f', borderRadius: 12, borderWidth: 1.5, borderColor: '#1e3a8a', justifyContent: 'center', alignItems: 'center', marginVertical: 4 },
+  avatarGridTileSelected: { borderColor: '#facc15', backgroundColor: '#1e3a8a', borderWidth: 2.5, elevation: 6 },
+  avatarTileLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 'bold', marginTop: 2 },
+
+  // MATCHMAKING LOBBY STYLES
+  matchmakingContainer: { flex: 1, backgroundColor: '#881337', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 16 },
+  matchLobbyHeader: { alignItems: 'center', marginTop: 4 },
+  matchLobbyTitle: { color: '#facc15', fontSize: 22, fontWeight: '900', letterSpacing: 1.5 },
+  matchFormatSub: { color: '#ffffff', fontSize: 12, fontWeight: '800', marginTop: 2, letterSpacing: 1 },
+  matchCodeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#450a0a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 2, borderColor: '#f87171', marginTop: 8 },
+  matchCodeLabel: { color: '#ffffff', fontWeight: 'bold', fontSize: 15 },
+  codePillBox: { backgroundColor: '#1e3a8a', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#38bdf8' },
+  codePillText: { color: '#facc15', fontWeight: '900', fontSize: 18, letterSpacing: 2 },
+  shareCodeBtn: { backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginLeft: 10 },
+  shareCodeText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
+  shareSubtitle: { color: '#fecaca', fontSize: 11, textAlign: 'center', marginTop: 4 },
+  
+  soloMatchLobbyWrap: { width: '100%', alignItems: 'center', marginVertical: 4 },
+  hostProfileBox: { alignItems: 'center', marginTop: 6 },
+  hostAvatarSquare: { width: 84, height: 84, borderRadius: 18, backgroundColor: '#7f1d1d', borderWidth: 2.5, borderColor: '#facc15', justifyContent: 'center', alignItems: 'center', elevation: 8 },
+  hostNameText: { color: '#ffffff', fontWeight: '900', fontSize: 15, marginTop: 4 },
+  hostBadgeText: { color: '#38bdf8', fontWeight: '800', fontSize: 10, marginTop: 1 },
+  vsGlowBanner: { marginVertical: 6 },
+  vsGlowText: { color: '#facc15', fontSize: 20, fontWeight: '900', letterSpacing: 2 },
+  opponentSlotsRow: { flexDirection: 'row', justifyContent: 'center', width: '100%', marginVertical: 6 },
+  slotInviteBox: { width: 88, height: 95, borderRadius: 16, backgroundColor: '#7f1d1d', borderWidth: 2, borderColor: '#fca5a5', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', marginHorizontal: 6, elevation: 4 },
+  plusAvatarIcon: { fontSize: 28, color: '#fecaca' },
+  inviteSlotLabel: { color: '#fecaca', fontSize: 9, fontWeight: 'bold', marginTop: 4, textAlign: 'center' },
+  joinedSlotName: { color: '#ffffff', fontSize: 11, fontWeight: 'bold', maxWidth: 75, textAlign: 'center', marginTop: 2 },
+  joinedSlotTag: { fontSize: 9, fontWeight: '900', marginTop: 1 },
+  
+  teamMatchLobbyWrap: { width: '100%', marginVertical: 2 },
+  teamLobbyBoxA: { backgroundColor: 'rgba(2, 132, 199, 0.25)', borderWidth: 1.5, borderColor: '#38bdf8', borderRadius: 16, padding: 8, alignItems: 'center' },
+  teamLobbyBoxB: { backgroundColor: 'rgba(225, 29, 72, 0.25)', borderWidth: 1.5, borderColor: '#fb7185', borderRadius: 16, padding: 8, alignItems: 'center' },
+  teamLobbyTitleA: { color: '#38bdf8', fontWeight: '900', fontSize: 12, marginBottom: 6, letterSpacing: 0.5 },
+  teamLobbyTitleB: { color: '#fb7185', fontWeight: '900', fontSize: 12, marginBottom: 6, letterSpacing: 0.5 },
+  teamSlotsRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
+  playerSquareActive: { width: 100, height: 86, borderRadius: 14, backgroundColor: '#1e3a8a', borderWidth: 1.5, borderColor: '#38bdf8', justifyContent: 'center', alignItems: 'center' },
+  slotBoxFilledGreen: { backgroundColor: '#14532d', borderColor: '#4ade80', borderStyle: 'solid' },
+  slotBoxFilledRed: { backgroundColor: '#881337', borderColor: '#fb7185', borderStyle: 'solid' },
+  slotBoxFilledYellow: { backgroundColor: '#713f12', borderColor: '#facc15', borderStyle: 'solid' },
+  slotPlayerNameText: { color: '#ffffff', fontWeight: 'bold', fontSize: 11, maxWidth: 85, textAlign: 'center', marginTop: 2 },
+  slotRoleTagBlue: { color: '#38bdf8', fontSize: 8, fontWeight: '900', marginTop: 1 },
+  slotRoleTagGreen: { color: '#4ade80', fontSize: 8, fontWeight: '900', marginTop: 1 },
+  slotRoleTagRed: { color: '#fb7185', fontSize: 8, fontWeight: '900', marginTop: 1 },
+  slotRoleTagYellow: { color: '#facc15', fontSize: 8, fontWeight: '900', marginTop: 1 },
+
+  matchBottomActions: { width: '100%', alignItems: 'center', marginBottom: 6 },
+  startMatchGoldBtn: { width: '90%', backgroundColor: '#eab308', borderWidth: 1.5, borderColor: '#fef08a', borderRadius: 14, paddingVertical: 13, alignItems: 'center', elevation: 6 },
+  startMatchGoldText: { color: '#000000', fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  cancelMatchBtn: { marginTop: 8, paddingVertical: 4 },
+  cancelMatchText: { color: '#fca5a5', fontWeight: 'bold', fontSize: 13 },
+
   brandHero: { alignItems: 'center', marginTop: 4 },
   crownEmoji: { fontSize: 36, marginBottom: 2 },
   brandGoldTitle: { fontSize: 24, fontWeight: '900', color: '#facc15', letterSpacing: 1.5, textAlign: 'center' },
@@ -1347,13 +1798,6 @@ const styles = StyleSheet.create({
   orText: { color: '#64748b', paddingHorizontal: 12, fontSize: 11, fontWeight: 'bold' },
   darkSecondaryButton: { backgroundColor: '#1e293b', borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#475569' },
   darkSecondaryButtonText: { color: '#cbd5e1', fontSize: 13, fontWeight: '700' },
-  bottomFooterPill: { backgroundColor: '#131c31', borderWidth: 1, borderColor: '#334155', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 2 },
-  footerPillText: { color: '#94a3b8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  aboutCardBox: { backgroundColor: '#0a0f1d', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
-  aboutGoldTitle: { color: '#facc15', fontSize: 18, fontWeight: '900', marginBottom: 2 },
-  aboutVersionText: { color: '#94a3b8', fontSize: 12, marginBottom: 8 },
-  aboutCreatorText: { color: '#ffffff', fontSize: 13, fontWeight: '700', marginTop: 6 },
-  aboutContactText: { color: '#38bdf8', fontSize: 12, fontWeight: '600', marginTop: 2 },
   tabToggleRow: { flexDirection: 'row', backgroundColor: '#0a0f1d', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#334155' },
   tabToggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   tabToggleActive: { backgroundColor: '#0284c7' },
@@ -1396,7 +1840,7 @@ const styles = StyleSheet.create({
   friendStatusText: { color: '#94a3b8', fontSize: 11 },
   invitePillBtn: { backgroundColor: '#10b981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   invitePillBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
-  inviteModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  inviteModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   invitePromptText: { color: '#ffffff', fontSize: 16, textAlign: 'center', marginBottom: 16 },
   mainContainer: { flex: 1, backgroundColor: '#1e3a8a', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
   patternBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#1e40af' },
