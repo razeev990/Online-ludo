@@ -31,16 +31,13 @@ const TRACK_COORDINATES = [
   [1, 8], [2, 8], [3, 8], [4, 8], [5, 8],
   [6, 9], [6, 10], [6, 11], [6, 12], [6, 13], [6, 14],
   [7, 14], [8, 14],
-  [8, 13], [8, 12], [8, 11], [8, 10], [8, 9]
-];
-const TRACK_COORDINATES_EXT = [
+  [8, 13], [8, 12], [8, 11], [8, 10], [8, 9],
   [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8],
   [14, 7], [14, 6],
   [13, 6], [12, 6], [11, 6], [10, 6], [9, 6],
   [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0],
   [7, 0], [6, 0]
 ];
-const FULL_TRACK = [...TRACK_COORDINATES, ...TRACK_COORDINATES_EXT];
 
 const HOME_PATHS = {
   BLUE: [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7], [8, 7]],
@@ -61,6 +58,7 @@ const SAFE_INDEXES = [0, 8, 13, 21, 26, 34, 39, 47];
 const ALL_COLORS = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const playSound = async (type) => {
   try {
     let soundAsset;
@@ -118,6 +116,7 @@ const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
     </View>
   </Animated.View>
 );
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authMode, setAuthMode] = useState('LOGIN');
@@ -193,6 +192,7 @@ export default function App() {
       ])
     ).start();
   }, []);
+
   const [pawns, setPawns] = useState({
     BLUE: [-1, -1, -1, -1],
     RED: [-1, -1, -1, -1],
@@ -206,7 +206,6 @@ export default function App() {
   const userWs = useRef(null);
   const currentTurn = activeColors[turnIndex] || activeColors[0];
 
-  // Auto-login from local storage
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -279,6 +278,7 @@ export default function App() {
     const guestId = Math.floor(1000 + Math.random() * 9000);
     setCurrentUser({ name: `Guest_${guestId}`, email: `guest_${guestId}@ludo.app`, coins: 500, playerId: guestId.toString() });
   };
+
   useEffect(() => {
     if (!currentUser) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
@@ -420,6 +420,7 @@ export default function App() {
     return ( (c1 === 'BLUE' && c2 === 'GREEN') || (c1 === 'GREEN' && c2 === 'BLUE') ||
              (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
   };
+
   useEffect(() => {
     if ((gameMode !== 'ONLINE' && gameMode !== 'HYBRID') || !roomCode) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
@@ -552,6 +553,7 @@ export default function App() {
       sendMultiplayerSync(pawnsRef.current, turnIndex, newDices, true);
     }
   };
+
   const executeStepMovement = async (color, index, diceVal, currentDices = playerDices) => {
     setIsMoving(true);
     let startStep = pawnsRef.current[color][index];
@@ -648,7 +650,7 @@ export default function App() {
     if (stepCount === -1) return BASE_SPOTS[color][idx];
     if (stepCount === 56) return [7, 7];
     if (stepCount >= 51) return HOME_PATHS[color][stepCount - 51];
-    return FULL_TRACK[(START_INDEX[color] + stepCount) % 52];
+    return TRACK_COORDINATES[(START_INDEX[color] + stepCount) % 52];
   };
 
   const getTurnColorHex = (col) => {
@@ -657,6 +659,7 @@ export default function App() {
     if (col === 'YELLOW') return '#eab308';
     return '#0284c7';
   };
+
   const renderCell = (row, col) => {
     if (row < 6 && col < 6) return null;
     if (row < 6 && col > 8) return null;
@@ -804,6 +807,7 @@ export default function App() {
       </View>
     );
   };
+
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -896,7 +900,7 @@ export default function App() {
               <View style={{ marginTop: 14 }}>
                 <Text style={styles.inputLabel}>TEAM UP SETUP:</Text>
                 <View style={styles.teamContainerBoxA}><Text style={styles.teamHeaderTitleA}>🛡️ Team A: Blue + Green</Text></View>
-                <View style={[styles.teamContainerBoxB, { marginTop: 6 }] subterranean}><Text style={styles.teamHeaderTitleB}>⚔️ Team B: Red + Yellow</Text></View>
+                <View style={[styles.teamContainerBoxB, { marginTop: 6 }]}><Text style={styles.teamHeaderTitleB}>⚔️ Team B: Red + Yellow</Text></View>
                 <TouchableOpacity style={[styles.checkboxRow, { marginTop: 10 }]} onPress={() => setFriendlyKill(!friendlyKill)}>
                   <View style={[styles.checkSquare, friendlyKill && styles.checkSquareActive]}>{friendlyKill && <Text style={styles.checkTick}>✓</Text>}</View>
                   <View style={{ marginLeft: 10 }}><Text style={styles.checkboxLabel}>Enable Friendly Kill?</Text></View>
@@ -915,6 +919,7 @@ export default function App() {
       </SafeAreaView>
     );
   }
+
   if (hybridTeamModal) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -1126,7 +1131,6 @@ export default function App() {
           </Modal>
         )}
 
-        {/* 3D ISOMETRIC ROYALE DASHBOARD HEADER */}
         <View style={styles.metallicProfileBox}>
           <View style={styles.profileLeftGroup}>
             <View style={styles.profileAvatarGlow}><Text style={styles.profileAvatarIcon}>👑</Text></View>
@@ -1143,7 +1147,6 @@ export default function App() {
           </View>
         </View>
 
-        {/* 3D FLOATING DICE HERO */}
         <View style={styles.isoHeroSection}>
           <View style={styles.floatingDiceBadgeLeft}><Text style={{ fontSize: 24 }}>🎲</Text></View>
           <View style={{ alignItems: 'center' }}>
@@ -1156,7 +1159,6 @@ export default function App() {
           <View style={styles.floatingDiceBadgeRight}><Text style={{ fontSize: 24 }}>🎲</Text></View>
         </View>
 
-        {/* 3D ISOMETRIC PODIUM TILES */}
         <View style={styles.gridContainer}>
           <TouchableOpacity activeOpacity={0.85} style={[styles.isoPodiumCard, { borderColor: '#38bdf8', backgroundColor: '#0369a1' }]} onPress={() => { setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']); setPlayType('SOLO'); setGameMode('BOT'); }}>
             <View style={[styles.isoAvatarCircle, { backgroundColor: '#0284c7' }]}><Text style={styles.isoEmoji}>🤖</Text></View>
@@ -1187,6 +1189,7 @@ export default function App() {
       </SafeAreaView>
     );
   }
+
   return (
     <SafeAreaView style={styles.mainContainer}>
       <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
