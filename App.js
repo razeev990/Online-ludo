@@ -86,7 +86,6 @@ const AVATAR_DATA = {
   ]
 };
 
-// Fixed DiceFace Component
 const DiceFace = ({ value }) => {
   const dot = <View style={styles.diceDot} />;
   const empty = <View style={[styles.diceDot, { opacity: 0 }]} />;
@@ -370,6 +369,7 @@ export default function App() {
     try {
       await AsyncStorage.removeItem('@ludo_supreme_user');
       setCurrentUser(null);
+      setSettingsModal(false);
       resetGame();
     } catch (err) {}
   };
@@ -545,7 +545,6 @@ export default function App() {
              (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
   };
 
-  // Websocket Live Matchmaking & In-Game Sync
   useEffect(() => {
     if ((gameMode !== 'ONLINE' && !onlineLobbyModal && gameMode !== 'HYBRID') || !roomCode) return;
     const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
@@ -1467,6 +1466,7 @@ export default function App() {
           resizeMode="cover"
         />
 
+        {/* SETTINGS MODAL (WITH LOGOUT OPTION) */}
         {settingsModal && (
           <Modal transparent animationType="slide" visible={settingsModal}>
             <View style={styles.inviteModalOverlay}>
@@ -1474,12 +1474,13 @@ export default function App() {
                 <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 10 }}>
                   <Text style={styles.cardHeading}>⚙️ GAME SETTINGS</Text>
 
+                  {/* Profile Section */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>👤 USER PROFILE</Text>
                     
                     <TouchableOpacity activeOpacity={0.8} style={styles.profileBigAvatarWrap} onPress={() => setAvatarModal(true)}>
                       <Text style={{ fontSize: 48 }}>{userAvatar}</Text>
-                      <View style={styles.editAvatarBadge}><Text style={{ fontSize: 10 }}>✏️ Change</Text></View>
+                      <View style={styles.editAvatarBadge}><Text style={{ fontSize: 10, color: '#ffffff', fontWeight: 'bold' }}>✏️ Change</Text></View>
                     </TouchableOpacity>
 
                     <View style={styles.infoLineRow}>
@@ -1502,6 +1503,7 @@ export default function App() {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Sound Section */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>🔊 AUDIO SETTINGS</Text>
                     <View style={styles.soundToggleRow}>
@@ -1518,6 +1520,7 @@ export default function App() {
                     </View>
                   </View>
 
+                  {/* About Section */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>ℹ️ ABOUT GAME</Text>
                     <Text style={styles.aboutGoldTitle}>LUDO SUPREME 3D</Text>
@@ -1527,7 +1530,12 @@ export default function App() {
                     <Text style={styles.aboutContactText}>Gmail - razeevsah@gmail.com</Text>
                   </View>
 
-                  <TouchableOpacity style={[styles.gold3DButton, { width: '100%', marginTop: 12 }]} onPress={() => setSettingsModal(false)}>
+                  {/* Logout Button inside Settings */}
+                  <TouchableOpacity activeOpacity={0.85} style={styles.logoutSettingsBtn} onPress={handleLogout}>
+                    <Text style={styles.logoutSettingsText}>🚪 LOGOUT ACCOUNT</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.gold3DButton, { width: '100%', marginTop: 8 }]} onPress={() => setSettingsModal(false)}>
                     <Text style={styles.gold3DButtonText}>SAVE & CLOSE</Text>
                   </TouchableOpacity>
                 </ScrollView>
@@ -1536,6 +1544,7 @@ export default function App() {
           </Modal>
         )}
 
+        {/* SELECT PROFILE PICTURE MODAL */}
         {avatarModal && (
           <Modal transparent animationType="fade" visible={avatarModal}>
             <View style={styles.inviteModalOverlay}>
@@ -1617,6 +1626,7 @@ export default function App() {
           </Modal>
         )}
 
+        {/* Top Header Bar without Cancel (X) button */}
         <SafeAreaView style={styles.topHeaderOverlay}>
           <View style={styles.topLeftProfileWrap}>
             <Text style={styles.headerUserName} numberOfLines={1}>
@@ -1635,13 +1645,10 @@ export default function App() {
             <TouchableOpacity activeOpacity={0.7} style={styles.friendsTouchBtn} onPress={() => setFriendsModal(true)}>
               <Text style={styles.friendsBtnText}>👥 Friends</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity activeOpacity={0.7} style={styles.logoutTouchBtn} onPress={handleLogout}>
-              <Text style={styles.logoutBtnText}>✕</Text>
-            </TouchableOpacity>
           </View>
         </SafeAreaView>
 
+        {/* Center Name & Coins Plank (Positioned up & centered) */}
         <View style={styles.centerCrownPlankWrap}>
           <Text style={styles.centerPlankName} numberOfLines={1}>
             {currentUser.name}
@@ -1651,12 +1658,7 @@ export default function App() {
           </Text>
         </View>
 
-        <View style={styles.centerIdSubtitleWrap}>
-          <Text style={styles.centerIdSubtitleText}>
-            ID: {currentUser.playerId || '9575'} | Choose Arena
-          </Text>
-        </View>
-
+        {/* 4 Interactive 3D Island Hotspots */}
         <View style={styles.podiumTouchLayer}>
           <TouchableOpacity
             activeOpacity={0.4}
@@ -1753,19 +1755,17 @@ const styles = StyleSheet.create({
   topLeftProfileWrap: { marginLeft: 62, justifyContent: 'center' },
   headerUserName: { color: '#ffffff', fontSize: 14, fontWeight: '900', maxWidth: 120, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
   headerUserCoins: { color: '#facc15', fontSize: 12, fontWeight: '800', marginTop: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
-  topRightBtnsWrap: { flexDirection: 'row', alignItems: 'center', marginRight: 4 },
-  settingTouchBtn: { backgroundColor: 'rgba(15, 23, 42, 0.85)', borderWidth: 1, borderColor: '#facc15', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginRight: 6 },
-  settingBtnText: { fontSize: 14 },
-  friendsTouchBtn: { backgroundColor: '#0284c7', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6, borderWidth: 1, borderColor: '#38bdf8' },
-  friendsBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 11 },
-  logoutTouchBtn: { backgroundColor: '#ef4444', borderRadius: 8, width: 28, height: 28, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fca5a5' },
-  logoutBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
+  topRightBtnsWrap: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
+  settingTouchBtn: { backgroundColor: 'rgba(15, 23, 42, 0.85)', borderWidth: 1, borderColor: '#facc15', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8 },
+  settingBtnText: { fontSize: 15 },
+  friendsTouchBtn: { backgroundColor: '#0284c7', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#38bdf8' },
+  friendsBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
   
-  centerCrownPlankWrap: { position: 'absolute', top: 154, alignSelf: 'center', alignItems: 'center', zIndex: 20 },
+  // Adjusted up & centered on plank
+  centerCrownPlankWrap: { position: 'absolute', top: 144, alignSelf: 'center', alignItems: 'center', zIndex: 20 },
   centerPlankName: { color: '#ffffff', fontSize: 16, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4 },
-  centerPlankCoins: { color: '#facc15', fontSize: 13, fontWeight: '800', marginTop: 2, textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4 },
-  centerIdSubtitleWrap: { position: 'absolute', top: 322, alignSelf: 'center', zIndex: 20 },
-  centerIdSubtitleText: { color: '#cbd5e1', fontSize: 11, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  centerPlankCoins: { color: '#facc15', fontSize: 13, fontWeight: '800', marginTop: 1, textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 4 },
+  
   podiumTouchLayer: { position: 'absolute', top: '41%', left: '4%', right: '4%', height: 360, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between', zIndex: 20 },
   podiumTouchSpot: { width: '47%', height: 165, borderRadius: 24 },
   
@@ -1784,6 +1784,8 @@ const styles = StyleSheet.create({
   aboutVersionText: { color: '#94a3b8', fontSize: 11, marginBottom: 6 },
   aboutCreatorText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
   aboutContactText: { color: '#38bdf8', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  logoutSettingsBtn: { width: '100%', backgroundColor: '#ef4444', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: '#fca5a5' },
+  logoutSettingsText: { color: '#ffffff', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 },
 
   avatarSelectionCard: { width: '95%', backgroundColor: '#022144', borderRadius: 24, padding: 14, borderWidth: 3, borderColor: '#facc15', alignItems: 'center', elevation: 12 },
   avatarPreviewTopBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 12 },
