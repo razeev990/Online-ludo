@@ -12,7 +12,8 @@ import {
   Easing,
   StatusBar,
   ScrollView,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
@@ -119,9 +120,10 @@ const ActiveTurnArrow = ({ bounceAnim, isTopRow }) => (
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [authMode, setAuthMode] = useState('LOGIN');
+  const [authMode, setAuthMode] = useState('LOGIN'); // 'LOGIN' | 'SIGNUP' | 'FORGOT'
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
 
   const [aboutModal, setAboutModal] = useState(false);
@@ -219,21 +221,22 @@ export default function App() {
   }, []);
 
   const handleAuthSubmit = async () => {
-    if (!emailInput.trim() || !passwordInput.trim()) {
-      Alert.alert('Error', 'Please enter email and password.');
+    if (!emailInput.trim()) {
+      Alert.alert('Error', 'Please enter email address.');
       return;
     }
 
     try {
       const dbUsersRaw = await AsyncStorage.getItem('@ludo_registered_users');
       let dbUsers = dbUsersRaw ? JSON.parse(dbUsersRaw) : {};
+      const userKey = emailInput.trim().toLowerCase();
 
       if (authMode === 'SIGNUP') {
-        if (!usernameInput.trim()) {
-          Alert.alert('Error', 'Please enter username.');
+        if (!passwordInput.trim() || !usernameInput.trim()) {
+          Alert.alert('Error', 'Please fill all fields.');
           return;
         }
-        if (dbUsers[emailInput.trim().toLowerCase()]) {
+        if (dbUsers[userKey]) {
           Alert.alert('Error', 'Account already exists. Please Sign In.');
           return;
         }
@@ -246,13 +249,17 @@ export default function App() {
           playerId: Math.floor(10000 + Math.random() * 90000).toString()
         };
 
-        dbUsers[emailInput.trim().toLowerCase()] = newUser;
+        dbUsers[userKey] = newUser;
         await AsyncStorage.setItem('@ludo_registered_users', JSON.stringify(dbUsers));
         await AsyncStorage.setItem('@ludo_supreme_user', JSON.stringify(newUser));
         setCurrentUser(newUser);
         Alert.alert('Success', 'Account permanently created!');
-      } else {
-        const matched = dbUsers[emailInput.trim().toLowerCase()];
+      } else if (authMode === 'LOGIN') {
+        if (!passwordInput.trim()) {
+          Alert.alert('Error', 'Please enter password.');
+          return;
+        }
+        const matched = dbUsers[userKey];
         if (!matched || matched.password !== passwordInput.trim()) {
           Alert.alert('Login Failed', 'Invalid credentials or account does not exist. Please sign up first.');
           return;
@@ -260,9 +267,25 @@ export default function App() {
 
         await AsyncStorage.setItem('@ludo_supreme_user', JSON.stringify(matched));
         setCurrentUser(matched);
+      } else if (authMode === 'FORGOT') {
+        if (!newPasswordInput.trim()) {
+          Alert.alert('Error', 'Please enter your new password.');
+          return;
+        }
+        if (!dbUsers[userKey]) {
+          Alert.alert('Error', 'No account found with this email address.');
+          return;
+        }
+
+        dbUsers[userKey].password = newPasswordInput.trim();
+        await AsyncStorage.setItem('@ludo_registered_users', JSON.stringify(dbUsers));
+        Alert.alert('Password Updated', 'Your password has been reset successfully. Please login with your new password.');
+        setPasswordInput('');
+        setNewPasswordInput('');
+        setAuthMode('LOGIN');
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to authenticate');
+      Alert.alert('Error', 'Authentication error occurred.');
     }
   };
 
@@ -498,6 +521,7 @@ export default function App() {
     return validIndexes;
   };
 
+  // Fixed Dice Roll Engine - Zero Post-Stop Value Change
   const rollDice = async (isBot = false) => {
     if (hasRolled || isMoving || isRolling || winner) return;
 
@@ -515,27 +539,29 @@ export default function App() {
     Animated.parallel([
       Animated.timing(spinAnim, {
         toValue: 1,
-        duration: 700,
+        duration: 650,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(diceBounceAnim, { toValue: 1.25, duration: 200, useNativeDriver: true }),
-        Animated.timing(diceBounceAnim, { toValue: 0.9, duration: 200, useNativeDriver: true }),
-        Animated.timing(diceBounceAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(diceBounceAnim, { toValue: 1.25, duration: 180, useNativeDriver: true }),
+        Animated.timing(diceBounceAnim, { toValue: 0.9, duration: 180, useNativeDriver: true }),
+        Animated.timing(diceBounceAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
       ])
     ]).start();
 
-    const shuffleDelays = [70, 80, 100, 130, 170];
+    // Fast face swapping during animation
+    const shuffleDelays = [60, 70, 90, 120];
     for (let delay of shuffleDelays) {
       const rand = Math.floor(Math.random() * 6) + 1;
       setPlayerDices(prev => ({ ...prev, [currentTurn]: rand }));
       await sleep(delay);
     }
 
+    // Set final number and freeze permanently
     const newDices = { ...playerDices, [currentTurn]: finalVal };
     setPlayerDices(prev => ({ ...prev, [currentTurn]: finalVal }));
-    await sleep(250);
+    await sleep(200);
 
     setIsRolling(false);
     setHasRolled(true);
@@ -808,6 +834,7 @@ export default function App() {
     );
   };
 
+  // Auth Screen (Sign In / Sign Up / Forgot Password)
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -819,14 +846,21 @@ export default function App() {
         </View>
 
         <View style={styles.glassCard}>
-          <View style={styles.tabToggleRow}>
-            <TouchableOpacity style={[styles.tabToggleBtn, authMode === 'LOGIN' && styles.tabToggleActive]} onPress={() => setAuthMode('LOGIN')}>
-              <Text style={[styles.tabToggleText, authMode === 'LOGIN' && styles.tabToggleTextActive]}>Sign In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.tabToggleBtn, authMode === 'SIGNUP' && styles.tabToggleActive]} onPress={() => setAuthMode('SIGNUP')}>
-              <Text style={[styles.tabToggleText, authMode === 'SIGNUP' && styles.tabToggleTextActive]}>Create Account</Text>
-            </TouchableOpacity>
-          </View>
+          {authMode !== 'FORGOT' ? (
+            <View style={styles.tabToggleRow}>
+              <TouchableOpacity style={[styles.tabToggleBtn, authMode === 'LOGIN' && styles.tabToggleActive]} onPress={() => setAuthMode('LOGIN')}>
+                <Text style={[styles.tabToggleText, authMode === 'LOGIN' && styles.tabToggleTextActive]}>Sign In</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tabToggleBtn, authMode === 'SIGNUP' && styles.tabToggleActive]} onPress={() => setAuthMode('SIGNUP')}>
+                <Text style={[styles.tabToggleText, authMode === 'SIGNUP' && styles.tabToggleTextActive]}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.forgotHeaderBox}>
+              <Text style={styles.forgotTitle}>🔑 Reset Your Password</Text>
+              <Text style={styles.forgotSubtitle}>Enter registered email and set a new password</Text>
+            </View>
+          )}
 
           {authMode === 'SIGNUP' && (
             <View style={{ marginTop: 12 }}>
@@ -840,19 +874,44 @@ export default function App() {
             <TextInput style={styles.gameTextInput} placeholder="name@gmail.com" placeholderTextColor="#64748b" keyboardType="email-address" autoCapitalize="none" value={emailInput} onChangeText={setEmailInput} />
           </View>
 
-          <View style={{ marginTop: 10 }}>
-            <Text style={styles.inputLabel}>PASSWORD</Text>
-            <TextInput style={styles.gameTextInput} placeholder="••••••••" placeholderTextColor="#64748b" secureTextEntry value={passwordInput} onChangeText={setPasswordInput} />
-          </View>
+          {authMode !== 'FORGOT' ? (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.inputLabel}>PASSWORD</Text>
+              <TextInput style={styles.gameTextInput} placeholder="••••••••" placeholderTextColor="#64748b" secureTextEntry value={passwordInput} onChangeText={setPasswordInput} />
+            </View>
+          ) : (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.inputLabel}>NEW PASSWORD</Text>
+              <TextInput style={styles.gameTextInput} placeholder="Enter new password" placeholderTextColor="#64748b" secureTextEntry value={newPasswordInput} onChangeText={setNewPasswordInput} />
+            </View>
+          )}
 
-          <TouchableOpacity activeOpacity={0.85} style={[styles.gold3DButton, { marginTop: 16 }]} onPress={handleAuthSubmit}>
-            <Text style={styles.gold3DButtonText}>{authMode === 'LOGIN' ? 'LOGIN TO ACCOUNT  ➔' : 'SIGN UP PERMANENTLY  ➔'}</Text>
+          {authMode === 'LOGIN' && (
+            <TouchableOpacity style={styles.forgotLinkContainer} onPress={() => setAuthMode('FORGOT')}>
+              <Text style={styles.forgotLinkText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity activeOpacity={0.85} style={[styles.gold3DButton, { marginTop: 14 }]} onPress={handleAuthSubmit}>
+            <Text style={styles.gold3DButtonText}>
+              {authMode === 'LOGIN' ? 'LOGIN TO ACCOUNT  ➔' : authMode === 'SIGNUP' ? 'SIGN UP PERMANENTLY  ➔' : 'CONFIRM RESET PASSWORD  ➔'}
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.orDivider}><View style={styles.dividerLine} /><Text style={styles.orText}>OR</Text><View style={styles.dividerLine} /></View>
-          <TouchableOpacity activeOpacity={0.85} style={styles.darkSecondaryButton} onPress={handleGuestLogin}>
-            <Text style={styles.darkSecondaryButtonText}>⚡ Quick Guest Play</Text>
-          </TouchableOpacity>
+          {authMode === 'FORGOT' && (
+            <TouchableOpacity activeOpacity={0.85} style={[styles.darkSecondaryButton, { marginTop: 10 }]} onPress={() => setAuthMode('LOGIN')}>
+              <Text style={styles.darkSecondaryButtonText}>⬅ Back to Sign In</Text>
+            </TouchableOpacity>
+          )}
+
+          {authMode !== 'FORGOT' && (
+            <>
+              <View style={styles.orDivider}><View style={styles.dividerLine} /><Text style={styles.orText}>OR</Text><View style={styles.dividerLine} /></View>
+              <TouchableOpacity activeOpacity={0.85} style={styles.darkSecondaryButton} onPress={handleGuestLogin}>
+                <Text style={styles.darkSecondaryButtonText}>⚡ Quick Guest Play</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -1093,11 +1152,21 @@ export default function App() {
     );
   }
 
+  // 3D ISOMETRIC DASHBOARD
   if (!gameMode) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
-        
+
+        {/* 3D Render Background Layer */}
+        <View style={StyleSheet.absoluteFill}>
+          <Image
+            source={require('./lobby_bg.png')}
+            style={styles.lobbyBgImage}
+            resizeMode="cover"
+          />
+        </View>
+
         {aboutModal && (
           <Modal transparent animationType="fade" visible={aboutModal}>
             <View style={styles.inviteModalOverlay}>
@@ -1131,61 +1200,67 @@ export default function App() {
           </Modal>
         )}
 
-        <View style={styles.metallicProfileBox}>
-          <View style={styles.profileLeftGroup}>
-            <View style={styles.profileAvatarGlow}><Text style={styles.profileAvatarIcon}>👑</Text></View>
-            <View>
-              <Text style={styles.profileUserName}>{currentUser.name}</Text>
-              <View style={styles.coinBadge}><Text style={styles.coinIcon}>🪙</Text><Text style={styles.coinAmount}>{currentUser.coins.toLocaleString()} Coins</Text></View>
-            </View>
-          </View>
-          
+        {/* Top Floating Control Bar */}
+        <View style={styles.topTransparentBar}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity style={styles.aboutHeaderBtn} onPress={() => setAboutModal(true)}><Text style={styles.aboutHeaderBtnText}>ℹ️</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.friendHeaderBtn} onPress={() => setFriendsModal(true)}><Text style={styles.friendHeaderBtnText}>👥 Friends</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.logoutPill} onPress={handleLogout}><Text style={styles.logoutPillText}>✕</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setAboutModal(true)}>
+              <Text style={{ fontSize: 16 }}>ℹ️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerActionBtn} onPress={() => setFriendsModal(true)}>
+              <Text style={styles.actionBtnText}>👥 Friends</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerActionBtn, { backgroundColor: '#ef4444' }]} onPress={handleLogout}>
+              <Text style={styles.actionBtnText}>✕</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.isoHeroSection}>
-          <View style={styles.floatingDiceBadgeLeft}><Text style={{ fontSize: 24 }}>🎲</Text></View>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={styles.isoSupTitle}>👑 {currentUser.name}</Text>
-            <Text style={styles.isoCoinPillText}>🪙 {currentUser.coins} Coins</Text>
-            <Text style={styles.brandGoldTitle}>LUDO SUPREME</Text>
-            <Text style={styles.isoRainbowTitle}>SUPREME</Text>
-            <Text style={styles.isoIdSub}>ID: {currentUser.playerId || '9575'} | Choose Arena</Text>
-          </View>
-          <View style={styles.floatingDiceBadgeRight}><Text style={{ fontSize: 24 }}>🎲</Text></View>
+        {/* Dynamic User Profile Overlay */}
+        <View style={styles.liveUserBadgeCenter}>
+          <Text style={styles.liveUserNameText}>👑 {currentUser.name}</Text>
+          <Text style={styles.liveUserCoinsText}>🪙 {currentUser.coins.toLocaleString()} Coins</Text>
+          <Text style={styles.liveUserIdText}>ID: {currentUser.playerId || '9575'} | Choose Arena</Text>
         </View>
 
-        <View style={styles.gridContainer}>
-          <TouchableOpacity activeOpacity={0.85} style={[styles.isoPodiumCard, { borderColor: '#38bdf8', backgroundColor: '#0369a1' }]} onPress={() => { setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']); setPlayType('SOLO'); setGameMode('BOT'); }}>
-            <View style={[styles.isoAvatarCircle, { backgroundColor: '#0284c7' }]}><Text style={styles.isoEmoji}>🤖</Text></View>
-            <Text style={styles.isoCardTitle}>Vs Computer</Text>
-            <Text style={styles.isoCardSub}>Practice Bot</Text>
-          </TouchableOpacity>
+        {/* Interactive 3D Island Hotspots */}
+        <View style={styles.touchPodiumGrid}>
+          {/* Top-Left: Vs Computer */}
+          <TouchableOpacity
+            activeOpacity={0.6}
+            style={styles.podiumTouchSpot}
+            onPress={() => {
+              setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
+              setPlayType('SOLO');
+              setGameMode('BOT');
+            }}
+          />
 
-          <TouchableOpacity activeOpacity={0.85} style={[styles.isoPodiumCard, { borderColor: '#4ade80', backgroundColor: '#15803d' }]} onPress={() => setPassPlayModal(true)}>
-            <View style={[styles.isoAvatarCircle, { backgroundColor: '#16a34a' }]}><Text style={styles.isoEmoji}>👥</Text></View>
-            <Text style={styles.isoCardTitle}>Pass & Play</Text>
-            <Text style={styles.isoCardSub}>2 - 4 Players</Text>
-          </TouchableOpacity>
+          {/* Top-Right: Pass & Play */}
+          <TouchableOpacity
+            activeOpacity={0.6}
+            style={styles.podiumTouchSpot}
+            onPress={() => setPassPlayModal(true)}
+          />
 
-          <TouchableOpacity activeOpacity={0.85} style={[styles.isoPodiumCard, { borderColor: '#facc15', backgroundColor: '#a16207' }]} onPress={() => setHybridTeamModal(true)}>
-            <View style={[styles.isoAvatarCircle, { backgroundColor: '#ca8a04' }]}><Text style={styles.isoEmoji}>🏰</Text></View>
-            <Text style={styles.isoCardTitle}>Team Up (A vs B)</Text>
-            <Text style={styles.isoCardSub}>Online + Offline</Text>
-          </TouchableOpacity>
+          {/* Bottom-Left: Team Up */}
+          <TouchableOpacity
+            activeOpacity={0.6}
+            style={styles.podiumTouchSpot}
+            onPress={() => setHybridTeamModal(true)}
+          />
 
-          <TouchableOpacity activeOpacity={0.85} style={[styles.isoPodiumCard, { borderColor: '#c084fc', backgroundColor: '#7e22ce' }]} onPress={() => setOnlineScreen(true)}>
-            <View style={[styles.isoAvatarCircle, { backgroundColor: '#9333ea' }]}><Text style={styles.isoEmoji}>🌐</Text></View>
-            <Text style={styles.isoCardTitle}>Online Arena</Text>
-            <Text style={styles.isoCardSub}>2-4P Friends</Text>
-          </TouchableOpacity>
+          {/* Bottom-Right: Online Arena */}
+          <TouchableOpacity
+            activeOpacity={0.6}
+            style={styles.podiumTouchSpot}
+            onPress={() => setOnlineScreen(true)}
+          />
         </View>
 
-        <View style={styles.bottomFooterPill}><Text style={styles.footerPillText}>★ PERMANENT ACCOUNT • CLOUD BACKUP ★</Text></View>
+        {/* Bottom Footer */}
+        <View style={styles.bottomFooterPill}>
+          <Text style={styles.footerPillText}>★ PERMANENT ACCOUNT • CLOUD BACKUP ★</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -1241,6 +1316,16 @@ export default function App() {
 
 const styles = StyleSheet.create({
   royaleContainer: { flex: 1, backgroundColor: '#0a0f1d', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16 },
+  lobbyBgImage: { width: '100%', height: '100%', position: 'absolute' },
+  topTransparentBar: { width: '100%', flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 4, paddingTop: 4, zIndex: 20 },
+  headerActionBtn: { backgroundColor: 'rgba(15, 23, 42, 0.75)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginLeft: 8, borderWidth: 1, borderColor: '#eab308' },
+  actionBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
+  liveUserBadgeCenter: { alignItems: 'center', marginTop: 85, zIndex: 10 },
+  liveUserNameText: { color: '#ffffff', fontSize: 16, fontWeight: '900', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  liveUserCoinsText: { color: '#facc15', fontSize: 14, fontWeight: '800', marginTop: 2 },
+  liveUserIdText: { color: '#cbd5e1', fontSize: 11, fontWeight: '600', marginTop: 48 },
+  touchPodiumGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%', height: 320, paddingHorizontal: 12, marginTop: 20 },
+  podiumTouchSpot: { width: '48%', height: 145, borderRadius: 24 },
   brandHero: { alignItems: 'center', marginTop: 4 },
   crownEmoji: { fontSize: 36, marginBottom: 2 },
   brandGoldTitle: { fontSize: 24, fontWeight: '900', color: '#facc15', letterSpacing: 1.5, textAlign: 'center' },
@@ -1252,38 +1337,16 @@ const styles = StyleSheet.create({
   gameTextInput: { backgroundColor: '#0a0f1d', borderWidth: 1.5, borderColor: '#334155', borderRadius: 12, color: '#ffffff', paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontWeight: '600' },
   gold3DButton: { backgroundColor: '#eab308', borderColor: '#fef08a', borderWidth: 1.5, borderRadius: 14, paddingVertical: 14, alignItems: 'center', shadowColor: '#facc15', shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
   gold3DButtonText: { color: '#000000', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  forgotHeaderBox: { alignItems: 'center', marginBottom: 8 },
+  forgotTitle: { color: '#facc15', fontSize: 16, fontWeight: 'bold' },
+  forgotSubtitle: { color: '#94a3b8', fontSize: 11, textAlign: 'center', marginTop: 2 },
+  forgotLinkContainer: { alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 },
+  forgotLinkText: { color: '#38bdf8', fontSize: 12, fontWeight: 'bold' },
   orDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#334155', marginVertical: 6 },
   orText: { color: '#64748b', paddingHorizontal: 12, fontSize: 11, fontWeight: 'bold' },
   darkSecondaryButton: { backgroundColor: '#1e293b', borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#475569' },
   darkSecondaryButtonText: { color: '#cbd5e1', fontSize: 13, fontWeight: '700' },
-  metallicProfileBox: { width: '100%', backgroundColor: '#1e293b', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 2, borderColor: '#d97706', elevation: 8 },
-  profileLeftGroup: { flexDirection: 'row', alignItems: 'center' },
-  profileAvatarGlow: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0f172a', borderWidth: 1.5, borderColor: '#facc15', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  profileAvatarIcon: { fontSize: 20 },
-  profileUserName: { color: '#ffffff', fontWeight: 'bold', fontSize: 15 },
-  coinBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 1 },
-  coinIcon: { fontSize: 12, marginRight: 4 },
-  coinAmount: { color: '#facc15', fontWeight: '800', fontSize: 12 },
-  aboutHeaderBtn: { backgroundColor: '#334155', width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 6 },
-  aboutHeaderBtnText: { fontSize: 16 },
-  friendHeaderBtn: { backgroundColor: '#0284c7', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, marginRight: 6 },
-  friendHeaderBtnText: { color: '#ffffff', fontSize: 11, fontWeight: 'bold' },
-  logoutPill: { backgroundColor: '#ef4444', width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  logoutPillText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold' },
-  isoHeroSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginVertical: 4 },
-  floatingDiceBadgeLeft: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  floatingDiceBadgeRight: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  isoSupTitle: { color: '#ffffff', fontSize: 14, fontWeight: 'bold' },
-  isoCoinPillText: { color: '#facc15', fontSize: 12, fontWeight: '700' },
-  isoRainbowTitle: { fontSize: 28, fontWeight: '900', color: '#38bdf8', letterSpacing: 2 },
-  isoIdSub: { color: '#94a3b8', fontSize: 11, marginTop: 1 },
-  gridContainer: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginVertical: 4 },
-  isoPodiumCard: { width: '48%', height: 135, borderRadius: 20, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', padding: 8, marginBottom: 10, elevation: 10 },
-  isoAvatarCircle: { width: 50, height: 50, borderRadius: 25, borderWidth: 1.5, borderColor: '#ffffff', justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  isoEmoji: { fontSize: 24 },
-  isoCardTitle: { color: '#ffffff', fontSize: 13, fontWeight: '900', textAlign: 'center' },
-  isoCardSub: { color: '#f1f5f9', fontSize: 10, fontWeight: '600', marginTop: 1, opacity: 0.9 },
   bottomFooterPill: { backgroundColor: '#131c31', borderWidth: 1, borderColor: '#334155', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 2 },
   footerPillText: { color: '#94a3b8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   aboutCardBox: { backgroundColor: '#0a0f1d', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
