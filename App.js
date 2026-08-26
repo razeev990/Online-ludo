@@ -59,7 +59,6 @@ const START_INDEX = { RED: 0, GREEN: 13, YELLOW: 26, BLUE: 39 };
 const SAFE_INDEXES = [0, 8, 13, 21, 26, 34, 39, 47];
 const ALL_COLORS = ['BLUE', 'RED', 'GREEN', 'YELLOW'];
 
-// Cartoon Avatar Collections (Male / Female / Royale)
 const AVATAR_DATA = {
   MALE: [
     { id: 'm1', label: '👦 Boy', icon: '👦' },
@@ -87,6 +86,70 @@ const AVATAR_DATA = {
   ]
 };
 
+// Fixed DiceFace Component
+const DiceFace = ({ value }) => {
+  const dot = <View style={styles.diceDot} />;
+  const empty = <View style={[styles.diceDot, { opacity: 0 }]} />;
+
+  const getDots = () => {
+    switch (value) {
+      case 1:
+        return <View style={styles.diceCenter}>{dot}</View>;
+      case 2:
+        return (
+          <View style={styles.diceRowSpace}>
+            <View style={styles.diceCol}>{dot}{empty}</View>
+            <View style={styles.diceCol}>{empty}{dot}</View>
+          </View>
+        );
+      case 3:
+        return (
+          <View style={styles.diceRowSpace}>
+            <View style={styles.diceCol}>{dot}{empty}{empty}</View>
+            <View style={styles.diceCol}>{empty}{dot}{empty}</View>
+            <View style={styles.diceCol}>{empty}{empty}{dot}</View>
+          </View>
+        );
+      case 4:
+        return (
+          <View style={styles.diceRowSpace}>
+            <View style={styles.diceCol}>{dot}{dot}</View>
+            <View style={styles.diceCol}>{dot}{dot}</View>
+          </View>
+        );
+      case 5:
+        return (
+          <View style={styles.diceRowSpace}>
+            <View style={styles.diceCol}>{dot}{empty}{dot}</View>
+            <View style={styles.diceCol}>{empty}{dot}{empty}</View>
+            <View style={styles.diceCol}>{dot}{empty}{dot}</View>
+          </View>
+        );
+      case 6:
+        return (
+          <View style={styles.diceRowSpace}>
+            <View style={styles.diceCol}>{dot}{dot}{dot}</View>
+            <View style={styles.diceCol}>{dot}{dot}{dot}</View>
+          </View>
+        );
+      default:
+        return <View style={styles.diceCenter}>{dot}</View>;
+    }
+  };
+
+  return <View style={styles.diceBox}>{getDots()}</View>;
+};
+
+const PinToken = ({ colorHex, shadowColor }) => (
+  <View style={styles.pinWrapper}>
+    <View style={[styles.pinHead, { backgroundColor: colorHex }]}>
+      <View style={styles.pinInnerGlow} />
+      <View style={styles.pinCenterDot} />
+    </View>
+    <View style={[styles.pinPointer, { borderTopColor: colorHex }]} />
+  </View>
+);
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
@@ -97,10 +160,9 @@ export default function App() {
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
 
-  // Settings & Avatar State
   const [settingsModal, setSettingsModal] = useState(false);
   const [avatarModal, setAvatarModal] = useState(false);
-  const [avatarCategory, setAvatarCategory] = useState('FEMALE'); // 'MALE' | 'FEMALE' | 'ROYALE'
+  const [avatarCategory, setAvatarCategory] = useState('FEMALE');
   const [userAvatar, setUserAvatar] = useState('👸');
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -156,40 +218,45 @@ export default function App() {
   const diceBounceAnim = useRef(new Animated.Value(1)).current;
   const arrowBounceAnim = useRef(new Animated.Value(0)).current;
 
-  // Sound Engine
   const playSound = async (type) => {
     if (!soundEnabled) return;
     try {
-      let soundAsset;
+      let soundAsset = null;
       if (type === 'dice') soundAsset = require('./assets/sounds/dice.mp3');
       else if (type === 'move') soundAsset = require('./assets/sounds/move.mp3');
       else if (type === 'cut') soundAsset = require('./assets/sounds/cut.mp3');
       else if (type === 'win') soundAsset = require('./assets/sounds/win.mp3');
 
       if (soundAsset) {
-        const { sound } = await Audio.Sound.createAsync(soundAsset);
-        await sound.playAsync();
+        const { sound } = await Audio.Sound.createAsync(soundAsset, { shouldPlay: true });
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            sound.unloadAsync().catch(() => {});
+          }
+        });
       }
-    } catch (error) {}
+    } catch (e) {}
   };
 
   useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(arrowBounceAnim, {
-          toValue: -8,
-          duration: 400,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          toValue: -6,
+          duration: 350,
+          easing: Easing.linear,
+          useNativeDriver: false,
         }),
         Animated.timing(arrowBounceAnim, {
           toValue: 0,
-          duration: 400,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          duration: 350,
+          easing: Easing.linear,
+          useNativeDriver: false,
         }),
       ])
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
 
   const [pawns, setPawns] = useState({
@@ -203,7 +270,7 @@ export default function App() {
   pawnsRef.current = pawns;
   const ws = useRef(null);
   const userWs = useRef(null);
-  const currentTurn = activeColors[turnIndex] || activeColors[0];
+  const currentTurn = activeColors[turnIndex] || activeColors[0] || 'BLUE';
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -382,6 +449,9 @@ export default function App() {
     }
     setActiveColors(colors);
     setTurnIndex(0);
+    setHasRolled(false);
+    setIsMoving(false);
+    setWinner(null);
     setPassPlayModal(false);
     setGameMode('OFFLINE');
   };
@@ -434,6 +504,10 @@ export default function App() {
       }));
     }
     setOnlineLobbyModal(false);
+    setTurnIndex(0);
+    setHasRolled(false);
+    setIsMoving(false);
+    setWinner(null);
     setGameMode('ONLINE');
   };
 
@@ -564,6 +638,7 @@ export default function App() {
 
   const getValidMoves = (color, diceVal) => {
     const playerPawns = pawnsRef.current[color];
+    if (!playerPawns) return [];
     const validIndexes = [];
     playerPawns.forEach((stepCount, idx) => {
       if (stepCount === -1 && diceVal === 6) validIndexes.push(idx);
@@ -589,14 +664,13 @@ export default function App() {
     Animated.parallel([
       Animated.timing(spinAnim, {
         toValue: 1,
-        duration: 650,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        duration: 550,
+        easing: Easing.linear,
+        useNativeDriver: false,
       }),
       Animated.sequence([
-        Animated.timing(diceBounceAnim, { toValue: 1.25, duration: 180, useNativeDriver: true }),
-        Animated.timing(diceBounceAnim, { toValue: 0.9, duration: 180, useNativeDriver: true }),
-        Animated.timing(diceBounceAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(diceBounceAnim, { toValue: 1.2, duration: 150, useNativeDriver: false }),
+        Animated.timing(diceBounceAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
       ])
     ]).start();
 
@@ -609,7 +683,7 @@ export default function App() {
 
     const newDices = { ...playerDices, [currentTurn]: finalVal };
     setPlayerDices(prev => ({ ...prev, [currentTurn]: finalVal }));
-    await sleep(200);
+    await sleep(150);
 
     setIsRolling(false);
     setHasRolled(true);
@@ -651,7 +725,7 @@ export default function App() {
       currentPawnsState = JSON.parse(JSON.stringify(currentPawnsState));
       currentPawnsState[color][index] = currentStep;
       setPawns(currentPawnsState);
-      await sleep(280);
+      await sleep(250);
     }
 
     finalizeMove(color, index, currentStep, diceVal, currentPawnsState, currentDices);
@@ -814,7 +888,7 @@ export default function App() {
   };
 
   const renderPlayerTokens = (color, colorHex, shadowColor) => {
-    if (!activeColors.includes(color)) return null;
+    if (!activeColors.includes(color) || !pawns[color]) return null;
     return pawns[color].map((stepCount, idx) => {
       const coords = getPawnScreenCoords(color, stepCount, idx);
       const isMyTurn = currentTurn === color;
@@ -836,11 +910,6 @@ export default function App() {
     });
   };
 
-  const spinInterpolation = spinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '720deg'],
-  });
-
   const renderPlayerCard = (color, pinHex, shadowHex, isLeftDice = false, isTopRow = true) => {
     const isPlayable = activeColors.includes(color);
     if (!isPlayable) return <View style={{ width: '45%' }} />;
@@ -851,7 +920,13 @@ export default function App() {
 
     return (
       <View style={styles.cardContainerWrapper}>
-        {isCurrent && <ActiveTurnArrow bounceAnim={arrowBounceAnim} isTopRow={isTopRow} />}
+        {isCurrent && (
+          <Animated.View style={[styles.floatingArrowContainer, isTopRow ? styles.arrowTopPos : styles.arrowBottomPos, { transform: [{ translateY: arrowBounceAnim }] }]}>
+            <View style={styles.arrowIconBubble}>
+              <Text style={styles.arrowIconText}>{isTopRow ? '▼' : '▲'}</Text>
+            </View>
+          </Animated.View>
+        )}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => isCurrent && rollDice()}
@@ -859,9 +934,9 @@ export default function App() {
         >
           {isLeftDice ? (
             <>
-              <Animated.View style={[styles.cardDiceWrap, isCurrent && { transform: [{ rotate: spinInterpolation }, { scale: diceBounceAnim }] }]}>
+              <View style={styles.cardDiceWrap}>
                 <DiceFace value={playerDices[color]} />
-              </Animated.View>
+              </View>
               <View style={styles.cardAvatarRight}>
                 <PinToken colorHex={pinHex} shadowColor={shadowHex} />
                 {badgeText !== '' && <Text style={styles.slotSmallBadge}>{badgeText}</Text>}
@@ -873,9 +948,9 @@ export default function App() {
                 <PinToken colorHex={pinHex} shadowColor={shadowHex} />
                 {badgeText !== '' && <Text style={styles.slotSmallBadge}>{badgeText}</Text>}
               </View>
-              <Animated.View style={[styles.cardDiceWrap, isCurrent && { transform: [{ rotate: spinInterpolation }, { scale: diceBounceAnim }] }]}>
+              <View style={styles.cardDiceWrap}>
                 <DiceFace value={playerDices[color]} />
-              </Animated.View>
+              </View>
             </>
           )}
         </TouchableOpacity>
@@ -883,7 +958,6 @@ export default function App() {
     );
   };
 
-  // Auth Screen
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -999,8 +1073,8 @@ export default function App() {
                   ))}
                 </View>
                 <Text style={styles.helperTip}>
-                  {selectedPlayerCount === 2 && '• 2 Players: Blue vs Green (Head to Head)'}
-                  {selectedPlayerCount === 3 && '• 3 Players: Blue, Red & Green (Triangle Battle)'}
+                  {selectedPlayerCount === 2 && '• 2 Players: Blue vs Green'}
+                  {selectedPlayerCount === 3 && '• 3 Players: Blue, Red & Green'}
                   {selectedPlayerCount === 4 && '• 4 Players: Full Board'}
                 </Text>
               </View>
@@ -1086,6 +1160,10 @@ export default function App() {
               setMyColor('BLUE');
               setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
               setPlayType('TEAM');
+              setTurnIndex(0);
+              setHasRolled(false);
+              setIsMoving(false);
+              setWinner(null);
               setGameMode('HYBRID');
               setHybridTeamModal(false);
               Alert.alert('Match Live!', `Room Code: ${code}`);
@@ -1155,7 +1233,7 @@ export default function App() {
     );
   }
 
-  // DYNAMIC ONLINE MATCHMAKING LOBBY
+  // MATCHMAKING LOBBY
   if (onlineLobbyModal) {
     const isTeamMode = playType === 'TEAM';
     const opponentColors = activeColors.filter(c => c !== 'BLUE');
@@ -1331,7 +1409,6 @@ export default function App() {
     );
   }
 
-  // Friends Squad Modal
   if (friendsModal) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -1390,7 +1467,6 @@ export default function App() {
           resizeMode="cover"
         />
 
-        {/* SETTINGS MODAL */}
         {settingsModal && (
           <Modal transparent animationType="slide" visible={settingsModal}>
             <View style={styles.inviteModalOverlay}>
@@ -1398,7 +1474,6 @@ export default function App() {
                 <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 10 }}>
                   <Text style={styles.cardHeading}>⚙️ GAME SETTINGS</Text>
 
-                  {/* Profile Section with Avatar Click */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>👤 USER PROFILE</Text>
                     
@@ -1427,7 +1502,6 @@ export default function App() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Sound Section */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>🔊 AUDIO SETTINGS</Text>
                     <View style={styles.soundToggleRow}>
@@ -1444,7 +1518,6 @@ export default function App() {
                     </View>
                   </View>
 
-                  {/* About Section */}
                   <View style={styles.settingsSectionCard}>
                     <Text style={styles.settingsSectionTitle}>ℹ️ ABOUT GAME</Text>
                     <Text style={styles.aboutGoldTitle}>LUDO SUPREME 3D</Text>
@@ -1463,13 +1536,11 @@ export default function App() {
           </Modal>
         )}
 
-        {/* SELECT PROFILE PICTURE MODAL (MALE / FEMALE / ROYALE) */}
         {avatarModal && (
           <Modal transparent animationType="fade" visible={avatarModal}>
             <View style={styles.inviteModalOverlay}>
               <View style={styles.avatarSelectionCard}>
                 
-                {/* Top Preview Bar */}
                 <View style={styles.avatarPreviewTopBox}>
                   <View style={styles.avatarPreviewCircle}>
                     <Text style={{ fontSize: 36 }}>{userAvatar}</Text>
@@ -1479,7 +1550,6 @@ export default function App() {
                   </View>
                 </View>
 
-                {/* Male / Female / Royale Tabs */}
                 <View style={styles.avatarCategoryRow}>
                   <TouchableOpacity 
                     style={[styles.avatarTabBtn, avatarCategory === 'MALE' && styles.avatarTabActiveMale]} 
@@ -1505,7 +1575,6 @@ export default function App() {
 
                 <Text style={styles.selectPicHeading}>SELECT PROFILE PICTURE</Text>
 
-                {/* Avatar Grid */}
                 <View style={styles.avatarGridContainer}>
                   {AVATAR_DATA[avatarCategory].map((item) => {
                     const isSelected = userAvatar === item.icon;
@@ -1523,7 +1592,6 @@ export default function App() {
                   })}
                 </View>
 
-                {/* Confirm Button */}
                 <TouchableOpacity 
                   activeOpacity={0.85} 
                   style={[styles.gold3DButton, { width: '100%', marginTop: 14 }]} 
@@ -1596,6 +1664,10 @@ export default function App() {
             onPress={() => {
               setActiveColors(['BLUE', 'RED', 'GREEN', 'YELLOW']);
               setPlayType('SOLO');
+              setTurnIndex(0);
+              setHasRolled(false);
+              setIsMoving(false);
+              setWinner(null);
               setGameMode('BOT');
             }}
           />
@@ -1644,10 +1716,14 @@ export default function App() {
           {renderBase('YELLOW', styles.yellowBase, false)}
 
           <View style={styles.centerHome}>
-            <View style={styles.triRed} />
-            <View style={styles.triGreen} />
-            <View style={styles.triYellow} />
-            <View style={styles.triBlue} />
+            <View style={styles.centerQuadRow}>
+              <View style={[styles.centerQuad, { backgroundColor: '#e11d48' }]} />
+              <View style={[styles.centerQuad, { backgroundColor: '#16a34a' }]} />
+            </View>
+            <View style={styles.centerQuadRow}>
+              <View style={[styles.centerQuad, { backgroundColor: '#0284c7' }]} />
+              <View style={[styles.centerQuad, { backgroundColor: '#eab308' }]} />
+            </View>
           </View>
 
           {Array.from({ length: 15 }).map((_, r) =>
@@ -1693,7 +1769,6 @@ const styles = StyleSheet.create({
   podiumTouchLayer: { position: 'absolute', top: '41%', left: '4%', right: '4%', height: 360, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignContent: 'space-between', zIndex: 20 },
   podiumTouchSpot: { width: '47%', height: 165, borderRadius: 24 },
   
-  // SETTINGS MODAL STYLES
   settingsSectionCard: { width: '100%', backgroundColor: '#0a0f1d', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#334155', marginVertical: 6, alignItems: 'center' },
   settingsSectionTitle: { color: '#38bdf8', fontSize: 12, fontWeight: '900', letterSpacing: 1, marginBottom: 8, alignSelf: 'flex-start' },
   profileBigAvatarWrap: { width: 75, height: 75, borderRadius: 38, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', borderWidth: 2.5, borderColor: '#facc15', marginBottom: 8, position: 'relative' },
@@ -1710,7 +1785,6 @@ const styles = StyleSheet.create({
   aboutCreatorText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
   aboutContactText: { color: '#38bdf8', fontSize: 12, fontWeight: '600', marginTop: 2 },
 
-  // SELECT AVATAR MODAL STYLES (MATCHES USER IMAGE)
   avatarSelectionCard: { width: '95%', backgroundColor: '#022144', borderRadius: 24, padding: 14, borderWidth: 3, borderColor: '#facc15', alignItems: 'center', elevation: 12 },
   avatarPreviewTopBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 12 },
   avatarPreviewCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#1e3a8a', borderWidth: 2, borderColor: '#38bdf8', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
@@ -1728,7 +1802,6 @@ const styles = StyleSheet.create({
   avatarGridTileSelected: { borderColor: '#facc15', backgroundColor: '#1e3a8a', borderWidth: 2.5, elevation: 6 },
   avatarTileLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 'bold', marginTop: 2 },
 
-  // MATCHMAKING LOBBY STYLES
   matchmakingContainer: { flex: 1, backgroundColor: '#881337', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 16 },
   matchLobbyHeader: { alignItems: 'center', marginTop: 4 },
   matchLobbyTitle: { color: '#facc15', fontSize: 22, fontWeight: '900', letterSpacing: 1.5 },
@@ -1860,8 +1933,8 @@ const styles = StyleSheet.create({
   cardAvatarLeft: { marginRight: 6, alignItems: 'center' },
   cardAvatarRight: { marginLeft: 6, alignItems: 'center' },
   floatingArrowContainer: { position: 'absolute', alignSelf: 'center', zIndex: 20 },
-  arrowTopPos: { bottom: -22 },
-  arrowBottomPos: { top: -22 },
+  arrowTopPos: { bottom: -20 },
+  arrowBottomPos: { top: -20 },
   arrowIconBubble: { backgroundColor: '#f59e0b', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#ffffff' },
   arrowIconText: { color: '#ffffff', fontWeight: 'bold', fontSize: 12 },
   diceBox: { width: 44, height: 44, backgroundColor: '#ffffff', borderRadius: 8, borderWidth: 2, borderColor: '#cbd5e1', justifyContent: 'center', alignItems: 'center', padding: 3 },
@@ -1870,10 +1943,10 @@ const styles = StyleSheet.create({
   diceRowSpace: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 2 },
   diceCol: { justifyContent: 'space-between' },
   pinWrapper: { alignItems: 'center', width: 22, height: 28 },
-  pinHead: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#ffffff', justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  pinInnerGlow: { position: 'absolute', top: 2, left: 4, width: 8, height: 5, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.4)' },
-  pinCenterDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffffff', opacity: 0.9 },
-  pinPointer: { width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 7, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  pinHead: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#ffffff', justifyContent: 'center', alignItems: 'center' },
+  pinInnerGlow: { position: 'absolute', top: 2, left: 4, width: 6, height: 4, borderRadius: 2, backgroundColor: 'rgba(255, 255, 255, 0.5)' },
+  pinCenterDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#ffffff' },
+  pinPointer: { width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 6, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   boardContainer: { width: BOARD_SIZE, height: BOARD_SIZE, backgroundColor: '#000000', borderWidth: 2, borderColor: '#000000' },
   board: { width: '100%', height: '100%', position: 'relative', backgroundColor: '#ffffff' },
   cell: { position: 'absolute', width: CELL_SIZE, height: CELL_SIZE, borderWidth: 0.5, borderColor: '#94a3b8', justifyContent: 'center', alignItems: 'center' },
@@ -1886,14 +1959,14 @@ const styles = StyleSheet.create({
   yellowBase: { bottom: 0, right: 0, backgroundColor: '#eab308' },
   baseInnerWhite: { width: '100%', height: '100%', backgroundColor: '#ffffff', borderRadius: 12, justifyContent: 'space-around', padding: 8 },
   pocketRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  basePocket: { width: 32, height: 32, borderRadius: 16, borderWidth: 3, backgroundColor: '#f8fafc' },
+  basePocket: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, backgroundColor: '#f8fafc' },
   playerLabel: { position: 'absolute', fontSize: 10, fontWeight: 'bold', color: '#0f172a' },
   playerLabelHorizontal: { bottom: 2 },
   playerLabelRotated: { left: -12, transform: [{ rotate: '-90deg' }] },
-  centerHome: { position: 'absolute', top: CELL_SIZE * 6, left: CELL_SIZE * 6, width: CELL_SIZE * 3, height: CELL_SIZE * 3, overflow: 'hidden' },
-  triRed: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#e11d48' },
-  triGreen: { position: 'absolute', top: 0, left: 0, right: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#16a34a' },
-  triYellow: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: '#eab308' },
-  triBlue: { position: 'absolute', bottom: 0, left: 0, right: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#0284c7' },
+  
+  centerHome: { position: 'absolute', top: CELL_SIZE * 6, left: CELL_SIZE * 6, width: CELL_SIZE * 3, height: CELL_SIZE * 3 },
+  centerQuadRow: { flex: 1, flexDirection: 'row' },
+  centerQuad: { flex: 1, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.4)' },
+
   tokenWrapper: { position: 'absolute', width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
 });
