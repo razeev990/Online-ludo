@@ -3912,7 +3912,7 @@ const styles = StyleSheet.create({
   centerTriangleTop: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#16a34a' },
   centerTriangleRight: { position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: '#eab308' },
   centerTriangleBottom: { position: 'absolute', bottom: 0, left: 0, width: 0, height: 0, borderLeftWidth: (CELL_SIZE * 3) / 2, borderRightWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#2563eb' },
-  centerTriangleLeft: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_Size * 3) / 2, borderLeftWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#ef4444' },
+  centerTriangleLeft: { position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderTopWidth: (CELL_SIZE * 3) / 2, borderBottomWidth: (CELL_SIZE * 3) / 2, borderLeftWidth: (CELL_SIZE * 3) / 2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#ef4444' },
 
   tokenWrapper: { position: 'absolute', width: CELL_SIZE, height: CELL_SIZE, justifyContent: 'center', alignItems: 'center' },
 });
