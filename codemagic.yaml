@@ -6,6 +6,10 @@ workflows:
     environment:
       node: 18
       java: 17
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/.gradle
     scripts:
       - name: Install dependencies
         script: |
@@ -17,13 +21,13 @@ workflows:
         script: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
     publishing:
       email:
         recipients:
-          - user@example.com
+          - razeevsah@gmail.com
         notify:
           success: true
           failure: true
