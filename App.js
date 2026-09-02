@@ -3562,7 +3562,12 @@ const styles = StyleSheet.create({
   basePocket: { width:26, height:26, borderRadius:13 },
   playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
   playerLabelHorizontal: { bottom:4 },
-  playerLabelRotated: { left:-8, transform:[{ rotate:'-90deg' }] },
+  playerLabelRotated: {
+  left: 0,
+  right: 0,
+  top: 4,
+  textAlign: 'center',
+},
   centerHome: { position:'absolute', top:CELL_SIZE * 6, left:CELL_SIZE * 6, width:CELL_SIZE * 3, height:CELL_SIZE * 3, overflow:'hidden' },
   centerTriangleTop: { position:'absolute', top:0, left:0, width:0, height:0, borderLeftWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopWidth:(CELL_SIZE * 3) / 2, borderLeftColor:'transparent', borderRightColor:'transparent', borderTopColor:'#16a34a' },
   centerTriangleRight: { position:'absolute', top:0, right:0, width:0, height:0, borderTopWidth:(CELL_SIZE * 3) / 2, borderBottomWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopColor:'transparent', borderBottomColor:'transparent', borderRightColor:'#eab308' },
