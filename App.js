@@ -298,7 +298,34 @@ export default function App() {
   const ws = useRef(null);
   const agoraEngine = useRef(null);
   const currentTurn = activeColors[turnIndex] || activeColors[0] || 'BLUE';
+  
+// ========== 30 SECOND TURN TIMER ==========
+useEffect(() => {
+  if (!gameMode || showPodiumBoard) return;
 
+  // Har naye turn par timer reset
+  setTurnTimeLeft(30);
+
+  const timer = setInterval(() => {
+    setTurnTimeLeft((prev) => {
+      if (prev <= 1) {
+        clearInterval(timer);
+
+        // Time khatam hone par next player's turn
+        setTimeout(() => {
+          nextTurn();
+        }, 100);
+
+        return 0;
+      }
+
+      return prev - 1;
+    });
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [turnIndex, gameMode, showPodiumBoard]);
+  
   // ========== SUPABASE USER UPSERT & HEARTBEAT ==========
   const syncUserToCloud = async (userObj) => {
     if (!userObj?.playerId) return;
