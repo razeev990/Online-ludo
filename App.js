@@ -119,12 +119,11 @@ const getPerspectiveLayout = (myColor) => {
     },
 
     GREEN: {
-      // GREEN board rotation = 90deg
-      bottomColor: 'GREEN',
-      topColor: 'BLUE',
-      leftColor: 'YELLOW',
-      rightColor: 'RED'
-    },
+  bottomColor: 'RED',
+  topColor: 'YELLOW',
+  leftColor: 'GREEN',
+  rightColor: 'BLUE'
+},
 
     YELLOW: {
       bottomColor: 'YELLOW',
