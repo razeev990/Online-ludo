@@ -98,12 +98,43 @@ const getInverseRotationAngle = (myColor) => {
 };
 const getPerspectiveLayout = (myColor) => {
   const layouts = {
-    'BLUE': { bottomColor:'BLUE', topColor:'GREEN', leftColor:'RED', rightColor:'YELLOW' },
-    'RED':   { bottomColor:'RED',   topColor:'YELLOW', leftColor:'GREEN', rightColor:'BLUE' },
-    'GREEN': { bottomColor:'GREEN', topColor:'BLUE',   leftColor:'RED',   rightColor:'YELLOW' },
-    'YELLOW':{ bottomColor:'YELLOW',topColor:'RED',    leftColor:'BLUE',  rightColor:'GREEN' }
+    // Board orientation:
+    // RED = left side
+    // GREEN = top side
+    // YELLOW = right side
+    // BLUE = bottom side
+
+    BLUE: {
+      bottomColor: 'BLUE',
+      topColor: 'GREEN',
+      leftColor: 'RED',
+      rightColor: 'YELLOW'
+    },
+
+    RED: {
+      bottomColor: 'RED',
+      topColor: 'YELLOW',
+      leftColor: 'GREEN',
+      rightColor: 'BLUE'
+    },
+
+    GREEN: {
+      // GREEN board rotation = 90deg
+      bottomColor: 'GREEN',
+      topColor: 'BLUE',
+      leftColor: 'YELLOW',
+      rightColor: 'RED'
+    },
+
+    YELLOW: {
+      bottomColor: 'YELLOW',
+      topColor: 'RED',
+      leftColor: 'BLUE',
+      rightColor: 'GREEN'
+    }
   };
-  return layouts[myColor] || layouts['BLUE'];
+
+  return layouts[myColor] || layouts.BLUE;
 };
 const getPawnScreenCoords = (color, stepCount, idx) => {
   if (stepCount === -1) return BASE_SPOTS[color][idx];
