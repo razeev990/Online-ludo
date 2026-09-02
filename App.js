@@ -1900,7 +1900,15 @@ export default function App() {
     return (
       <View key={`${row}-${col}`} style={[styles.cell, { left, top, backgroundColor: bgColor }]}>
         {isStar && <Text style={[styles.starCleanText, { transform: [{ rotate: inverseRot }] }]}>☆</Text>}
-        {arrowIcon !== '' && <Text style={[styles.arrowCleanText, { color: arrowColor, transform: [{ rotate: inverseRot }] }]}>{arrowIcon}</Text>}
+        {arrowIcon !== '' && <Text style={[
+  styles.arrowCleanText,
+  {
+    color: arrowColor,
+    transform: [{ rotate: inverseRot }]
+  }
+]}>
+  {arrowIcon}
+</Text>}
       </View>
     );
   };
