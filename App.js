@@ -790,7 +790,7 @@ useEffect(() => {
     return validIndexes;
   };
 
-  const getStrategicMoveIndex = (color, diceVal, validMoves) => {
+
   const getStrategicMoveIndex = (color, diceVal, validMoves) => {
   if (!validMoves || validMoves.length === 0) return null;
   if (validMoves.length === 1) return validMoves[0];
