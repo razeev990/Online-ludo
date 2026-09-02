@@ -90,53 +90,55 @@ const QUICK_EMOJIS = ['😀','🔥','😂','👏','🎯','👑','😎','🤫'];
 
 const getBoardRotationAngle = (myColor) => {
   const map = {
-    RED: '0deg',
-    GREEN: '-90deg',
-    YELLOW: '180deg',
-    BLUE: '90deg'
+    RED: '-90deg',
+    GREEN: '180deg',
+    YELLOW: '90deg',
+    BLUE: '0deg'
   };
 
   return map[myColor] || '0deg';
 };
 const getInverseRotationAngle = (myColor) => {
   const map = {
-    RED: '0deg',
-    GREEN: '90deg',
-    YELLOW: '180deg',
-    BLUE: '-90deg'
+    RED: '90deg',
+    GREEN: '180deg',
+    YELLOW: '-90deg',
+    BLUE: '0deg'
   };
 
   return map[myColor] || '0deg';
 };
 const getPerspectiveLayout = (myColor) => {
   const layouts = {
+
     RED: {
-      leftColor: 'RED',
-      topColor: 'GREEN',
-      rightColor: 'YELLOW',
-      bottomColor: 'BLUE'
+      leftColor: 'GREEN',
+      topColor: 'YELLOW',
+      bottomColor: 'RED',
+      rightColor: 'BLUE'
     },
 
     GREEN: {
-      leftColor: 'GREEN',
-      topColor: 'YELLOW',
-      rightColor: 'BLUE',
-      bottomColor: 'RED'
+      leftColor: 'YELLOW',
+      topColor: 'BLUE',
+      bottomColor: 'GREEN',
+      rightColor: 'RED'
     },
 
     YELLOW: {
-      leftColor: 'YELLOW',
-      topColor: 'BLUE',
-      rightColor: 'RED',
-      bottomColor: 'GREEN'
+      leftColor: 'BLUE',
+      topColor: 'RED',
+      bottomColor: 'YELLOW',
+      rightColor: 'GREEN'
     },
 
     BLUE: {
-      leftColor: 'BLUE',
-      topColor: 'RED',
-      rightColor: 'GREEN',
-      bottomColor: 'YELLOW'
+      leftColor: 'RED',
+      topColor: 'GREEN',
+      bottomColor: 'BLUE',
+      rightColor: 'YELLOW'
     }
+
   };
 
   return layouts[myColor] || layouts.BLUE;
