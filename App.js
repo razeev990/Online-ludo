@@ -303,7 +303,8 @@ export default function App() {
 useEffect(() => {
   if (!gameMode || showPodiumBoard) return;
 
-  // Har naye turn par timer reset
+  if (hasRolled || isMoving || isRolling) return;
+
   setTurnTimeLeft(30);
 
   const timer = setInterval(() => {
@@ -311,10 +312,9 @@ useEffect(() => {
       if (prev <= 1) {
         clearInterval(timer);
 
-        // Time khatam hone par next player's turn
         setTimeout(() => {
-          nextTurn();
-        }, 100);
+          handleTimeoutMiss();
+        }, 300);
 
         return 0;
       }
@@ -324,7 +324,15 @@ useEffect(() => {
   }, 1000);
 
   return () => clearInterval(timer);
-}, [turnIndex, gameMode, showPodiumBoard]);
+
+}, [
+  turnIndex,
+  gameMode,
+  showPodiumBoard,
+  hasRolled,
+  isMoving,
+  isRolling
+]);
   
   // ========== SUPABASE USER UPSERT & HEARTBEAT ==========
   const syncUserToCloud = async (userObj) => {
