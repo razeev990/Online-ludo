@@ -1011,7 +1011,86 @@ useEffect(() => {
 
   return bestMove;
 };
+    
+const handleTimeoutMiss = () => {
+  const timedOutColor = currentTurn;
+  const newMissCount = (playerMissCount[timedOutColor] || 0) + 1;
 
+  setPlayerMissCount(prev => ({
+    ...prev,
+    [timedOutColor]: newMissCount
+  }));
+
+  // 3 chances khatam → player exit
+  if (newMissCount >= 3) {
+    const remainingColors = activeColors.filter(
+      color => color !== timedOutColor
+    );
+
+    // ===== ONLY 2 PLAYERS THE =====
+    if (remainingColors.length === 1) {
+      const winnerColor = remainingColors[0];
+      const finalRankings = [winnerColor, timedOutColor];
+
+      setActiveColors(remainingColors);
+      setFinishedRankings(finalRankings);
+      setShowPodiumBoard(true);
+      setHasRolled(false);
+      setIsMoving(false);
+      setIsRolling(false);
+
+      if (winnerColor === myColorRef.current) {
+        addWinnerCoins(matchPrizePool);
+      }
+
+      updateUserGameStats(
+        winnerColor === myColorRef.current
+      );
+
+      Alert.alert(
+        'PLAYER EXITED',
+        `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed. ${getBaseDynamicLabel(winnerColor)} wins!`
+      );
+
+      sendMultiplayerSync(
+        pawnsRef.current,
+        0,
+        playerDices,
+        false,
+        finalRankings
+      );
+
+      return;
+    }
+
+    // ===== 3 YA 4 PLAYERS THE =====
+    const nextIdx = turnIndex % remainingColors.length;
+
+    setActiveColors(remainingColors);
+    setTurnIndex(nextIdx);
+    setHasRolled(false);
+    setIsMoving(false);
+    setIsRolling(false);
+    setTurnTimeLeft(30);
+
+    Alert.alert(
+      'PLAYER EXITED',
+      `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed from the game.`
+    );
+
+    sendMultiplayerSync(
+      pawnsRef.current,
+      nextIdx,
+      playerDices,
+      false
+    );
+
+    return;
+  }
+
+  // 3 se kam miss hai → automatic dice roll
+  rollDice(false, true);
+};
   const nextTurn = (currentIdx = turnIndex, customActive = activeColors) => {
     const nextIdx = (currentIdx + 1) % customActive.length;
     setTurnIndex(nextIdx);
