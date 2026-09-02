@@ -1369,7 +1369,32 @@ export default function App() {
     setBotSelectModal(false);
     setGameMode('BOT');
   };
+// ========== COMPUTER AUTO PLAY ==========
+useEffect(() => {
+  if (gameMode !== 'BOT') return;
 
+  // BLUE = real player
+  // Baaki colors = computer
+  if (currentTurn === 'BLUE') return;
+
+  // Agar koi move/animation already chal raha hai to wait karo
+  if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
+
+  const botTimer = setTimeout(() => {
+    rollDice(true);
+  }, 800);
+
+  return () => clearTimeout(botTimer);
+
+}, [
+  gameMode,
+  currentTurn,
+  turnIndex,
+  hasRolled,
+  isMoving,
+  isRolling,
+  showPodiumBoard
+]);
   const startCustomPassPlay = () => {
     let colors, defaultRoomPlayers = {};
     if (playType === 'SOLO') {
