@@ -2009,10 +2009,14 @@ export default function App() {
             disabled={!hasRolled || !isMyTurn || isMoving}
             onPress={() => executeStepMovement(color, idx, playerDices[color])}
             style={[
-              styles.tokenWrapper,
-              { left: finalLeft, top: finalTop, zIndex: isMyTurn ? 25 : 10 + idx, transform: [{ rotate: inverseRot }] },
-              stepCount === 56 && { opacity: 0.3 }
-            ]}
+  styles.tokenWrapper,
+  {
+    left: finalLeft,
+    top: finalTop,
+    zIndex: isMyTurn ? 25 : 10 + idx
+  },
+  stepCount === 56 && { opacity: 0.3 }
+]}
           >
             <PinToken colorHex={colorHex} stackCount={stackCount} />
           </TouchableOpacity>
