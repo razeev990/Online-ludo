@@ -756,54 +756,234 @@ export default function App() {
   };
 
   const getStrategicMoveIndex = (color, diceVal, validMoves) => {
-    if (validMoves.length === 1) return validMoves[0];
-    const playerPawns = pawnsRef.current[color];
-    for (let idx of validMoves) {
-      let step = playerPawns[idx];
-      let targetStep = step === -1 ? 0 : step + diceVal;
-      if (targetStep < 51) {
-        let trackIdx = (START_INDEX[color] + targetStep) % 52;
-        if (!SAFE_INDEXES.includes(trackIdx)) {
-          for (let enemy of activeColorsRef.current) {
-            if (enemy !== color && !isTeammate(color, enemy)) {
-              for (let enemyStep of pawnsRef.current[enemy]) {
-                if (enemyStep >= 0 && enemyStep < 51) {
-                  let enemyTrack = (START_INDEX[enemy] + enemyStep) % 52;
-                  if (enemyTrack === trackIdx) return idx;
-                }
-              }
-            }
-          }
+  const getStrategicMoveIndex = (color, diceVal, validMoves) => {
+  if (!validMoves || validMoves.length === 0) return null;
+  if (validMoves.length === 1) return validMoves[0];
+
+  const playerPawns = pawnsRef.current[color];
+
+  // ==========================================
+  // EXTREME HARD COMPUTER AI
+  // ==========================================
+
+  const getEnemyThreat = (targetTrack, movingColor) => {
+    let threatScore = 0;
+
+    for (const enemy of activeColorsRef.current) {
+      if (enemy === movingColor) continue;
+      if (isTeammate(movingColor, enemy)) continue;
+
+      for (const enemyStep of pawnsRef.current[enemy]) {
+        if (enemyStep < 0 || enemyStep >= 51) continue;
+
+        const enemyTrack =
+          (START_INDEX[enemy] + enemyStep) % 52;
+
+        // Enemy se target tak distance
+        const distance =
+          (targetTrack - enemyTrack + 52) % 52;
+
+        // Enemy next dice roll mein capture kar sakta hai
+        if (distance >= 1 && distance <= 6) {
+          threatScore += (7 - distance) * 700;
         }
       }
     }
-    const homeMove = validMoves.find((idx) => {
-      const step = playerPawns[idx];
-      return step + diceVal === 56 || (step >= 50 && step + diceVal <= 56);
-    });
-    if (homeMove !== undefined) return homeMove;
-    for (let idx of validMoves) {
-      let step = playerPawns[idx];
-      let targetStep = step === -1 ? 0 : step + diceVal;
-      if (targetStep < 51) {
-        let trackIdx = (START_INDEX[color] + targetStep) % 52;
-        if (SAFE_INDEXES.includes(trackIdx)) return idx;
-      }
-    }
-    if (diceVal === 6) {
-      const basePawn = validMoves.find((idx) => playerPawns[idx] === -1);
-      const activePawnsCount = playerPawns.filter(s => s >= 0 && s < 56).length;
-      if (basePawn !== undefined && activePawnsCount < 3) {
-        return basePawn;
-      }
-    }
-    let sortedMoves = [...validMoves].sort((a, b) => {
-      if (playerPawns[a] === -1) return 1;
-      if (playerPawns[b] === -1) return -1;
-      return playerPawns[b] - playerPawns[a];
-    });
-    return sortedMoves[0];
+
+    return threatScore;
   };
+
+
+  const canCaptureEnemy = (targetTrack, movingColor) => {
+    let captureScore = 0;
+
+    for (const enemy of activeColorsRef.current) {
+      if (enemy === movingColor) continue;
+      if (isTeammate(movingColor, enemy)) continue;
+
+      for (const enemyStep of pawnsRef.current[enemy]) {
+        if (enemyStep < 0 || enemyStep >= 51) continue;
+
+        const enemyTrack =
+          (START_INDEX[enemy] + enemyStep) % 52;
+
+        if (enemyTrack === targetTrack) {
+          captureScore += 10000;
+        }
+      }
+    }
+
+    return captureScore;
+  };
+
+
+  let bestMove = validMoves[0];
+  let bestScore = -Infinity;
+
+
+  for (const idx of validMoves) {
+    const currentStep = playerPawns[idx];
+
+    // Target position
+    const targetStep =
+      currentStep === -1
+        ? 0
+        : currentStep + diceVal;
+
+    let score = 0;
+
+
+    // ==========================================
+    // 1. FINISH GOTI = VERY HIGH PRIORITY
+    // ==========================================
+
+    if (targetStep === 56) {
+      score += 15000;
+    }
+
+
+    // ==========================================
+    // 2. HOME LANE PRIORITY
+    // ==========================================
+
+    if (targetStep >= 51 && targetStep < 56) {
+      score += 7000;
+
+      // Home ke jitna paas utna better
+      score += targetStep * 80;
+    }
+
+
+    // ==========================================
+    // 3. MAIN BOARD POSITION
+    // ==========================================
+
+    if (targetStep >= 0 && targetStep < 51) {
+
+      const targetTrack =
+        (START_INDEX[color] + targetStep) % 52;
+
+
+      // ======================================
+      // CAPTURE ENEMY = HIGHEST ATTACK
+      // ======================================
+
+      score += canCaptureEnemy(targetTrack, color);
+
+
+      // ======================================
+      // SAFE CELL
+      // ======================================
+
+      if (SAFE_INDEXES.includes(targetTrack)) {
+        score += 3500;
+      } else {
+
+        // Enemy attack danger check
+        const danger =
+          getEnemyThreat(targetTrack, color);
+
+        score -= danger;
+      }
+
+
+      // ======================================
+      // CURRENT PAWN DANGER CHECK
+      // Agar goti already danger mein hai aur
+      // move karke bach rahi hai
+      // ======================================
+
+      if (currentStep >= 0 && currentStep < 51) {
+
+        const currentTrack =
+          (START_INDEX[color] + currentStep) % 52;
+
+        if (!SAFE_INDEXES.includes(currentTrack)) {
+
+          const currentDanger =
+            getEnemyThreat(currentTrack, color);
+
+          const targetDanger =
+            SAFE_INDEXES.includes(targetTrack)
+              ? 0
+              : getEnemyThreat(targetTrack, color);
+
+          // Danger se escape karna smart move hai
+          if (currentDanger > targetDanger) {
+            score +=
+              Math.min(
+                currentDanger - targetDanger,
+                5000
+              );
+          }
+        }
+      }
+
+
+      // ======================================
+      // FORWARD PROGRESS
+      // ======================================
+
+      score += targetStep * 35;
+    }
+
+
+    // ==========================================
+    // 4. SIX PAR NEW GOTI NIKALNA
+    // ==========================================
+
+    if (
+      diceVal === 6 &&
+      currentStep === -1
+    ) {
+      const activePawnCount =
+        playerPawns.filter(
+          step => step >= 0 && step < 56
+        ).length;
+
+      // Board par kam goti ho to new goti
+      // nikalna useful hai
+      if (activePawnCount < 2) {
+        score += 2800;
+      } else if (activePawnCount < 3) {
+        score += 1400;
+      }
+    }
+
+
+    // ==========================================
+    // 5. LAST PART OF JOURNEY PRIORITY
+    // ==========================================
+
+    if (
+      currentStep >= 35 &&
+      currentStep < 51
+    ) {
+      score += 1000;
+    }
+
+
+    // ==========================================
+    // 6. RANDOM TIE BREAKER
+    // Same score par har baar same move na ho
+    // ==========================================
+
+    score += Math.random() * 10;
+
+
+    // ==========================================
+    // BEST MOVE SELECT
+    // ==========================================
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = idx;
+    }
+  }
+
+
+  return bestMove;
+};
 
   const nextTurn = (currentIdx = turnIndex, customActive = activeColors) => {
     const nextIdx = (currentIdx + 1) % customActive.length;
