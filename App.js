@@ -89,11 +89,11 @@ const AVATAR_DATA = {
 const QUICK_EMOJIS = ['😀','🔥','😂','👏','🎯','👑','😎','🤫'];
 
 const getBoardRotationAngle = (myColor) => {
-  const map = { 'BLUE':'0deg', 'RED':'180deg', 'GREEN':'90deg', 'YELLOW':'-90deg' };
+  const map = { 'BLUE':'0deg', 'RED':'180deg', 'GREEN':'-90deg', 'YELLOW':'-90deg' };
   return map[myColor] || '0deg';
 };
 const getInverseRotationAngle = (myColor) => {
-  const map = { 'BLUE':'0deg', 'RED':'180deg', 'GREEN':'-90deg', 'YELLOW':'90deg' };
+  const map = { 'BLUE':'0deg', 'RED':'180deg', 'GREEN':'90deg', 'YELLOW':'90deg' };
   return map[myColor] || '0deg';
 };
 const getPerspectiveLayout = (myColor) => {
