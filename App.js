@@ -1903,8 +1903,7 @@ export default function App() {
         {arrowIcon !== '' && <Text style={[
   styles.arrowCleanText,
   {
-    color: arrowColor,
-    transform: [{ rotate: inverseRot }]
+    color: arrowColor
   }
 ]}>
   {arrowIcon}
