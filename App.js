@@ -1174,6 +1174,7 @@ useEffect(() => {
       sendMultiplayerSync(updatedPawns, nextIdx, currentDices, false, currentFinished);
     } else if (extraTurn) {
       setHasRolled(false);
+      setTurnTimeLeft(30);
       sendMultiplayerSync(updatedPawns, turnIndex, currentDices, false, currentFinished);
     } else {
       const nextIdx = nextTurn(turnIndex, activeColors);
