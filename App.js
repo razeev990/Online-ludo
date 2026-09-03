@@ -657,7 +657,34 @@ useEffect(() => {
       });
     } catch (e) {}
   };
+// ========== LOAD GLOBAL LEADERBOARD ==========
+const loadGlobalLeaderboard = async () => {
+  try {
+    const response = await fetch(
+      `${SUPABASE_REST_URL}/ludo_users?select=player_id,name,coins&order=coins.desc`,
+      {
+        headers: supabaseHeaders
+      }
+    );
 
+    if (!response.ok) {
+      console.log('Leaderboard load failed:', response.status);
+      return;
+    }
+
+    const data = await response.json();
+
+    if (Array.isArray(data)) {
+      setCloudLeaderboardData(
+        [...data].sort(
+          (a, b) => Number(b.coins || 0) - Number(a.coins || 0)
+        )
+      );
+    }
+  } catch (error) {
+    console.log('Leaderboard error:', error);
+  }
+};
   const recordRecentPlayer = async (playerObj) => {
     if (!currentUserRef.current || !playerObj?.id || playerObj.id === currentUserRef.current.playerId) return;
     try {
