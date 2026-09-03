@@ -3213,7 +3213,10 @@ useEffect(() => {
         {renderFriendsSquadModal()}
         <SafeAreaView style={styles.fulfilledTopActionCenterBar}>
           <View style={styles.topActionCenterInnerRow}>
-            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setLeaderboardModal(true)}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => {
+  loadGlobalLeaderboard();
+  setLeaderboardModal(true);
+}}>
               <Text style={styles.megaFulfilledEmoji}>🏆</Text><Text style={styles.megaFulfilledText}>Leaderboard</Text>
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => { setFriendsModal(true); fetchCloudFriendList(currentUser?.playerId); }}>
