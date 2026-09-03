@@ -3848,17 +3848,10 @@ const styles = StyleSheet.create({
   pocketRow: { flexDirection:'row', justifyContent:'space-around' },
   basePocket: { width:26, height:26, borderRadius:13 },
   playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
-  playerLabelHorizontal: { bottom:4 },
-  playerLabelRed: {
+  playerLabelBottom: {
   bottom: 4,
   left: 0,
   right: 0,
-  textAlign: 'center',
-},
-  playerLabelRotated: {
-  left: 0,
-  right: 0,
-  top: 4,
   textAlign: 'center',
 },
   centerHome: { position:'absolute', top:CELL_SIZE * 6, left:CELL_SIZE * 6, width:CELL_SIZE * 3, height:CELL_SIZE * 3, overflow:'hidden' },
