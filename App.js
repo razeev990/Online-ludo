@@ -659,6 +659,65 @@ useEffect(() => {
       });
     } catch (e) {}
   };
+  // ========== DAILY BONUS ==========
+const claimDailyBonus = async () => {
+  if (!currentUserRef.current?.playerId) return;
+
+  const playerId = currentUserRef.current.playerId;
+  const bonusKey = `@ludo_daily_bonus_${playerId}`;
+  const today = new Date().toDateString();
+
+  try {
+    const lastClaimDate = await AsyncStorage.getItem(bonusKey);
+
+    if (lastClaimDate === today) {
+      setDailyBonusClaimed(true);
+
+      Alert.alert(
+        'Daily Bonus Already Claimed',
+        '🎁 Aaj ka Daily Bonus already claim ho chuka hai. Kal phir se claim karna!'
+      );
+      return;
+    }
+
+    const reward = 100;
+
+    const updatedUser = {
+      ...currentUserRef.current,
+      coins: Number(currentUserRef.current.coins || 0) + reward
+    };
+
+    currentUserRef.current = updatedUser;
+    setCurrentUser(updatedUser);
+
+    await AsyncStorage.setItem(
+      '@ludo_supreme_user',
+      JSON.stringify(updatedUser)
+    );
+
+    await AsyncStorage.setItem(bonusKey, today);
+
+    setDailyBonusClaimed(true);
+
+    await syncUserCoinsToCloud(
+      updatedUser.playerId,
+      updatedUser.coins
+    );
+
+    Alert.alert(
+      '🎉 Daily Bonus Claimed!',
+      `🪙 ${reward} Coins aapke account mein add kar diye gaye hain!`
+    );
+
+  } catch (error) {
+    console.log('Daily Bonus Error:', error);
+
+    Alert.alert(
+      'Error',
+      'Daily Bonus claim nahi ho saka. Please try again.'
+    );
+  }
+};
 // ========== LOAD GLOBAL LEADERBOARD ==========
 const loadGlobalLeaderboard = async () => {
   try {
