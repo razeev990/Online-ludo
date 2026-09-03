@@ -1594,6 +1594,7 @@ const handleTimeoutMiss = () => {
           }
           setOnlineLobbyModal(false);
           setGameMode(data.playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
+          joinAgoraVoiceChannel();
         }
         else if (type === 'SYNC_GAME') {
           setOnlineLobbyModal(false);
