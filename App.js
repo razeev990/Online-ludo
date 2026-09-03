@@ -3632,7 +3632,7 @@ const styles = StyleSheet.create({
   pinHeadCircle: { width:15, height:15, borderRadius:7.5, justifyContent:'center', alignItems:'center' },
   pinWhiteInnerCore: { width:8, height:8, borderRadius:4, backgroundColor:'#ffffff', justifyContent:'center', alignItems:'center' },
   pinDotCenter: { width:4, height:4, borderRadius:2 },
-  pinBottomPoint: { position:'absolute', bottom:-5, width:0, height:0, borderLeftWidth:3.5, borderRightWidth:3.5, borderTopWidth:5.5, borderLeftColor:'transparent', borderRightColor:'transparent' },
+  
   stackBadgeBubble: { position:'absolute', top:-10, alignSelf:'center', backgroundColor:'#facc15', borderRadius:8, width:15, height:15, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#000000', zIndex:30 },
   stackBadgeText: { color:'#000000', fontSize:9, fontWeight:'900' },
   boardContainer: { width:BOARD_SIZE, height:BOARD_SIZE, backgroundColor:'#ffffff', borderWidth:2, borderColor:'#334155', borderRadius:6, overflow:'hidden', elevation:12, shadowColor:'#000', shadowOpacity:0.4, shadowRadius:8 },
