@@ -1953,7 +1953,31 @@ joinAgoraVoiceChannel();
       Alert.alert('Copied!', `Room Code ${roomCode} copied.`);
     }
   };
+const requestMicrophonePermission = async () => {
+  try {
+    const { Platform, PermissionsAndroid } = require('react-native');
 
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: 'Microphone Permission',
+        message: 'Ludo Supreme needs microphone access for live voice chat.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'Allow',
+      }
+    );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  } catch (error) {
+    console.warn('Microphone permission error:', error);
+    return false;
+  }
+};
   const toggleVoiceMic = async () => {
     if (!isVoiceUnlocked) {
       Alert.alert(
