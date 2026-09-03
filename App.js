@@ -3198,6 +3198,79 @@ useEffect(() => {
             </View>
           </Modal>
         )}
+        {dailyBonusModal && (
+          <Modal
+            transparent
+            animationType="fade"
+            visible={dailyBonusModal}
+          >
+            <View style={styles.inviteModalOverlay}>
+              <View
+                style={[
+                  styles.glassCard,
+                  {
+                    borderColor: '#facc15',
+                    borderWidth: 2
+                  }
+                ]}
+              >
+                <Text style={styles.podiumTitleHeader}>
+                  🎁 DAILY BONUS
+                </Text>
+
+                <Text style={styles.podiumSubHeader}>
+                  Come back every day and collect your reward!
+                </Text>
+
+                <View
+                  style={{
+                    marginVertical: 20,
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ fontSize: 52 }}>🪙</Text>
+
+                  <Text
+                    style={{
+                      color: '#facc15',
+                      fontSize: 30,
+                      fontWeight: '900',
+                      marginTop: 8
+                    }}
+                  >
+                    +100 COINS
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.gold3DButton}
+                  onPress={claimDailyBonus}
+                >
+                  <Text style={styles.gold3DButtonText}>
+                    {dailyBonusClaimed
+                      ? 'ALREADY CLAIMED TODAY ✓'
+                      : 'CLAIM DAILY BONUS 🎁'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[
+                    styles.darkSecondaryButton,
+                    { marginTop: 10 }
+                  ]}
+                  onPress={() => setDailyBonusModal(false)}
+                >
+                  <Text style={styles.darkSecondaryButtonText}>
+                    CLOSE
+                  </Text>
+                </TouchableOpacity>
+
+              </View>
+            </View>
+          </Modal>
+        )}
         {profileStatsModal && (
           <Modal transparent animationType="slide" visible={profileStatsModal}>
             <View style={styles.inviteModalOverlay}>
