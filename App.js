@@ -1664,15 +1664,23 @@ const handleTimeoutMiss = () => {
     setBotSelectModal(false);
     setGameMode('BOT');
   };
-// ========== COMPUTER AUTO PLAY ==========
+// ========== COMPUTER / TEAM BOT AUTO PLAY ==========
 useEffect(() => {
-  if (gameMode !== 'BOT') return;
 
-  // BLUE = real player
-  // Baaki colors = computer
-  if (currentTurn === 'BLUE') return;
+  // Normal VS COMPUTER mode
+  const isNormalBotTurn =
+    gameMode === 'BOT' &&
+    currentTurn !== 'BLUE';
 
-  // Agar koi move/animation already chal raha hai to wait karo
+  // TEAM UP / HYBRID mode mein jis player ka slot BOT hai
+  const isHybridBotTurn =
+    gameMode === 'HYBRID' &&
+    playerSlots[currentTurn] === 'BOT';
+
+  // Agar current turn BOT ka nahi hai to kuch mat karo
+  if (!isNormalBotTurn && !isHybridBotTurn) return;
+
+  // Agar dice already roll ho chuka hai ya movement chal raha hai
   if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
 
   const botTimer = setTimeout(() => {
@@ -1685,6 +1693,7 @@ useEffect(() => {
   gameMode,
   currentTurn,
   turnIndex,
+  playerSlots,
   hasRolled,
   isMoving,
   isRolling,
