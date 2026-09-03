@@ -3681,6 +3681,12 @@ const styles = StyleSheet.create({
   basePocket: { width:26, height:26, borderRadius:13 },
   playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
   playerLabelHorizontal: { bottom:4 },
+  playerLabelRed: {
+  bottom: 4,
+  left: 0,
+  right: 0,
+  textAlign: 'center',
+},
   playerLabelRotated: {
   left: 0,
   right: 0,
