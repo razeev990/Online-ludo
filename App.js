@@ -1979,6 +1979,15 @@ const requestMicrophonePermission = async () => {
   }
 };
   const toggleVoiceMic = async () => {
+    const hasPermission = await requestMicrophonePermission();
+
+if (!hasPermission) {
+  Alert.alert(
+    'Microphone Permission Required',
+    'Live voice chat use karne ke liye microphone permission allow karein.'
+  );
+  return;
+}
     if (!isVoiceUnlocked) {
       Alert.alert(
         'Unlock Live Voice Chat',
