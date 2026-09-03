@@ -1480,7 +1480,7 @@ const handleTimeoutMiss = () => {
     }));
   }
 };
-    };
+
 
     socket.onmessage = async (e) => {
       try {
