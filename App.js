@@ -193,6 +193,8 @@ export default function App() {
   const [settingsModal, setSettingsModal] = useState(false);
   const [profileStatsModal, setProfileStatsModal] = useState(false);
   const [leaderboardModal, setLeaderboardModal] = useState(false);
+  const [dailyBonusModal, setDailyBonusModal] = useState(false);
+const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
   const [cloudLeaderboardData, setCloudLeaderboardData] = useState([]);
   const [avatarModal, setAvatarModal] = useState(false);
   const [avatarCategory, setAvatarCategory] = useState('FEMALE');
