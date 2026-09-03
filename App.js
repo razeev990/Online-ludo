@@ -1455,24 +1455,31 @@ const handleTimeoutMiss = () => {
     ws.current = socket;
 
     socket.onopen = () => {
-      socket.send(JSON.stringify({ topic: `realtime:room_${roomCode}`, event: 'phx_join', payload: {}, ref: 'room_join_ref' }));
+  socket.send(JSON.stringify({
+    topic: `realtime:room_${roomCode}`,
+    event: 'phx_join',
+    payload: {},
+    ref: 'room_join_ref'
+  }));
 
-      if (isHostRef.current && currentUserRef.current) {
-        socket.send(JSON.stringify({
-          topic: `realtime:room_${roomCode}`,
-          event: 'broadcast',
-          payload: {
-            type: 'PLAYER_JOINED',
-            data: {
-              color: myColorRef.current,
-              name: currentUserRef.current.name,
-              id: currentUserRef.current.playerId,
-              avatar: userAvatarRef.current
-            }
-          },
-          ref: 'p_join_host'
-        }));
-      }
+  // Permanent socket ready hone ke baad hi player ko room mein ready announce karo
+  if (currentUserRef.current && myColorRef.current) {
+    socket.send(JSON.stringify({
+      topic: `realtime:room_${roomCode}`,
+      event: 'broadcast',
+      payload: {
+        type: 'PLAYER_JOINED',
+        data: {
+          color: myColorRef.current,
+          name: currentUserRef.current.name,
+          id: currentUserRef.current.playerId,
+          avatar: userAvatarRef.current
+        }
+      },
+      ref: isHostRef.current ? 'p_join_host' : 'p_join_guest_ready'
+    }));
+  }
+};
     };
 
     socket.onmessage = async (e) => {
