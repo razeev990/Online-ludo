@@ -2440,7 +2440,7 @@ useEffect(() => {
         }
 
         const finalLeft = coords[1] * CELL_SIZE + offsetX;
-        const finalTop = coords[0] * CELL_SIZE - 7 + offsetY;
+        const finalTop = coords[0] * CELL_SIZE  + offsetY;
 
         rendered.push(
           <TouchableOpacity
