@@ -1110,10 +1110,20 @@ const handleTimeoutMiss = () => {
   const rollDice = async (isBot = false, isAutoTimeout = false) => {
     if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
     if (!isBot && !isAutoTimeout) {
-      if (gameMode === 'ONLINE' && currentTurn !== myColor) return;
-      if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'ONLINE' && currentTurn !== myColor) return;
-    }
+  if (gameMode === 'ONLINE' && currentTurn !== myColor) return;
 
+  if (
+    gameMode === 'HYBRID' &&
+    playerSlots[currentTurn] === 'ONLINE' &&
+    currentTurn !== myColor
+  ) return;
+
+  // TEAM UP mein BOT ko manually roll nahi kar sakte
+  if (
+    gameMode === 'HYBRID' &&
+    playerSlots[currentTurn] === 'BOT'
+  ) return;
+}
     setIsRolling(true);
     playSound('dice');
 
