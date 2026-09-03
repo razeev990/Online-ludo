@@ -3389,6 +3389,16 @@ useEffect(() => {
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setSettingsModal(true)}>
               <Text style={styles.megaFulfilledEmoji}>⚙️</Text><Text style={styles.megaFulfilledText}>Settings</Text>
             </TouchableOpacity>
+          <TouchableOpacity
+  activeOpacity={0.85}
+  style={styles.megaFulfilledButton}
+  onPress={() => setDailyBonusModal(true)}
+>
+  <Text style={styles.megaFulfilledEmoji}>🎁</Text>
+  <Text style={styles.megaFulfilledText}>
+    Daily Bonus
+  </Text>
+</TouchableOpacity>
           </View>
         </SafeAreaView>
         <View style={styles.centerBannerProfileWrapPerfect}>
