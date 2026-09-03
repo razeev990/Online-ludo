@@ -2295,10 +2295,22 @@ useEffect(() => {
           </View>
         )}
         {isPlayable && (
-          <Text style={[styles.playerLabel, isVertical ? styles.playerLabelRotated : styles.playerLabelHorizontal, { transform: [{ rotate: inverseRot }] }]}>
-            {label}
-          </Text>
-        )}
+  <Text
+    style={[
+      styles.playerLabel,
+
+      color === 'RED'
+        ? styles.playerLabelRed
+        : isVertical
+          ? styles.playerLabelRotated
+          : styles.playerLabelHorizontal,
+
+      { transform: [{ rotate: inverseRot }] }
+    ]}
+  >
+    {label}
+  </Text>
+)}
       </View>
     );
   };
