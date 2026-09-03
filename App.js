@@ -1933,6 +1933,8 @@ useEffect(() => {
     setFinishedRankings([]);
     setShowPodiumBoard(false);
     setGameMode(playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
+    // 🎙️ HOST JOIN VOICE CHAT
+joinAgoraVoiceChannel();
   };
 
   // ========== OTHER UI HELPERS ==========
