@@ -2382,17 +2382,11 @@ useEffect(() => {
             </Text>
           </View>
         )}
-        {isPlayable && (
+{isPlayable && (
   <Text
     style={[
       styles.playerLabel,
-
-      color === 'RED'
-        ? styles.playerLabelRed
-        : isVertical
-          ? styles.playerLabelRotated
-          : styles.playerLabelHorizontal,
-
+      styles.playerLabelBottom,
       { transform: [{ rotate: inverseRot }] }
     ]}
   >
