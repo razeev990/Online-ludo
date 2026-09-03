@@ -303,6 +303,29 @@ const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
 
   const ws = useRef(null);
   const agoraEngine = useRef(null);
+  // ========== INITIALIZE AGORA VOICE ==========
+const initializeAgoraVoice = async () => {
+  try {
+    if (agoraEngine.current) return true;
+
+    const engine = createAgoraRtcEngine();
+    agoraEngine.current = engine;
+
+    engine.initialize({
+      appId: AGORA_APP_ID,
+      channelProfile:
+        ChannelProfileType.ChannelProfileCommunication,
+    });
+
+    engine.enableAudio();
+
+    return true;
+  } catch (error) {
+    console.warn('Agora initialization error:', error);
+    agoraEngine.current = null;
+    return false;
+  }
+};
   const currentTurn = activeColors[turnIndex] || activeColors[0] || 'BLUE';
   
 // ========== 30 SECOND TURN TIMER ==========
