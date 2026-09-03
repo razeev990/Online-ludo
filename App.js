@@ -651,7 +651,45 @@ useEffect(() => {
       console.warn('Error leaving voice channel:', e);
     }
   };
+// ========== JOIN AGORA VOICE CHANNEL ==========
+const joinAgoraVoiceChannel = async () => {
+  try {
+    const roomId = roomCodeRef.current;
 
+    if (!roomId) {
+      console.warn('Voice channel: Room code missing');
+      return false;
+    }
+
+    const initialized = await initializeAgoraVoice();
+
+    if (!initialized || !agoraEngine.current) {
+      console.warn('Voice channel: Agora initialization failed');
+      return false;
+    }
+
+    await agoraEngine.current.joinChannel(
+      null,
+      `ludo_${roomId}`,
+      0,
+      {
+        clientRoleType:
+          ClientRoleType.ClientRoleBroadcaster,
+        channelProfile:
+          ChannelProfileType.ChannelProfileCommunication,
+      }
+    );
+
+    await agoraEngine.current.muteLocalAudioStream(!isMicOn);
+
+    console.log('Joined Agora voice channel:', `ludo_${roomId}`);
+
+    return true;
+  } catch (error) {
+    console.warn('Error joining Agora voice channel:', error);
+    return false;
+  }
+};
   // ========== HELPER FUNCTIONS ==========
   const deductUserCoins = async (amount) => {
     if (!currentUserRef.current) return false;
