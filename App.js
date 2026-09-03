@@ -174,7 +174,7 @@ const PinToken = ({ colorHex, stackCount }) => (
       <View style={[styles.pinHeadCircle, { backgroundColor: colorHex }]}>
         <View style={styles.pinWhiteInnerCore}><View style={[styles.pinDotCenter, { backgroundColor: colorHex }]} /></View>
       </View>
-      <View style={[styles.pinBottomPoint, { borderTopColor: colorHex }]} />
+
     </View>
   </View>
 );
