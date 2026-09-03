@@ -1769,17 +1769,7 @@ const handleTimeoutMiss = () => {
           setHybridTeamModal(false);
           setOnlineLobbyModal(true);
 
-          if (currentUserRef.current) {
-            tempWs.send(JSON.stringify({
-              topic: `realtime:room_${code}`,
-              event: 'broadcast',
-              payload: {
-                type: 'PLAYER_JOINED',
-                data: { color: assignedColor, name: currentUserRef.current.name, id: currentUserRef.current.playerId, avatar: userAvatarRef.current }
-              },
-              ref: 'p_join_guest_team'
-            }));
-          }
+          
           joined = true;
           tempWs.close();
         }
