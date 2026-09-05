@@ -257,6 +257,11 @@ export default function App() {
   const [hasRolled, setHasRolled] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [turnIndex, setTurnIndex] = useState(0);
+  
+  // ===== FIX: currentTurn computed from activeColors and turnIndex =====
+  const currentTurn = activeColors[turnIndex] || 'BLUE';
+  // ====================================================================
+
   const spinAnim = useRef(new Animated.Value(0)).current;
   const diceBounceAnim = useRef(new Animated.Value(1)).current;
   const arrowBounceAnim = useRef(new Animated.Value(0)).current;
