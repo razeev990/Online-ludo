@@ -13,6 +13,7 @@ import {
   ChannelProfileType,
   ClientRoleType
 } from 'react-native-agora';
+
 const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_DuyB_EEKvMkDk0QFxQykqg_ZXCMzTwo';
 const SUPABASE_REST_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1`;
@@ -99,9 +100,9 @@ const getBoardRotationAngle = (myColor) => {
     YELLOW: '90deg',
     BLUE: '0deg'
   };
-
   return map[myColor] || '0deg';
 };
+
 const getInverseRotationAngle = (myColor) => {
   const map = {
     RED: '90deg',
@@ -109,56 +110,19 @@ const getInverseRotationAngle = (myColor) => {
     YELLOW: '-90deg',
     BLUE: '0deg'
   };
-
   return map[myColor] || '0deg';
 };
-const getPlayerLabelPositionStyle = (color, myColor) => {
-  const perspective = getPerspectiveLayout(myColor);
 
-  if (
-    color === perspective.topColor ||
-    color === perspective.leftColor
-  ) {
-    return 'playerLabelTop';
-  }
-
-  return 'playerLabelBottom';
-};
 const getPerspectiveLayout = (myColor) => {
   const layouts = {
-
-    RED: {
-      leftColor: 'GREEN',
-      topColor: 'YELLOW',
-      bottomColor: 'RED',
-      rightColor: 'BLUE'
-    },
-
-    GREEN: {
-      leftColor: 'YELLOW',
-      topColor: 'BLUE',
-      bottomColor: 'GREEN',
-      rightColor: 'RED'
-    },
-
-    YELLOW: {
-      leftColor: 'BLUE',
-      topColor: 'RED',
-      bottomColor: 'YELLOW',
-      rightColor: 'GREEN'
-    },
-
-    BLUE: {
-      leftColor: 'RED',
-      topColor: 'GREEN',
-      bottomColor: 'BLUE',
-      rightColor: 'YELLOW'
-    }
-
+    RED: { leftColor: 'GREEN', topColor: 'YELLOW', bottomColor: 'RED', rightColor: 'BLUE' },
+    GREEN: { leftColor: 'YELLOW', topColor: 'BLUE', bottomColor: 'GREEN', rightColor: 'RED' },
+    YELLOW: { leftColor: 'BLUE', topColor: 'RED', bottomColor: 'YELLOW', rightColor: 'GREEN' },
+    BLUE: { leftColor: 'RED', topColor: 'GREEN', bottomColor: 'BLUE', rightColor: 'YELLOW' }
   };
-
   return layouts[myColor] || layouts.BLUE;
 };
+
 const getPawnScreenCoords = (color, stepCount, idx) => {
   if (stepCount === -1) return BASE_SPOTS[color][idx];
   if (stepCount === 56) return [7,7];
@@ -190,7 +154,6 @@ const PinToken = ({ colorHex, stackCount }) => (
       <View style={[styles.pinHeadCircle, { backgroundColor: colorHex }]}>
         <View style={styles.pinWhiteInnerCore}><View style={[styles.pinDotCenter, { backgroundColor: colorHex }]} /></View>
       </View>
-
     </View>
   </View>
 );
@@ -198,7 +161,6 @@ const PinToken = ({ colorHex, stackCount }) => (
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
-  // ========== STATE ==========
   const [currentUser, setCurrentUser] = useState(null);
   const [authMode, setAuthMode] = useState('LOGIN');
   const [emailInput, setEmailInput] = useState('');
@@ -210,7 +172,7 @@ export default function App() {
   const [profileStatsModal, setProfileStatsModal] = useState(false);
   const [leaderboardModal, setLeaderboardModal] = useState(false);
   const [dailyBonusModal, setDailyBonusModal] = useState(false);
-const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
+  const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
   const [cloudLeaderboardData, setCloudLeaderboardData] = useState([]);
   const [avatarModal, setAvatarModal] = useState(false);
   const [avatarCategory, setAvatarCategory] = useState('FEMALE');
@@ -295,7 +257,6 @@ const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
     YELLOW: [-1,-1,-1,-1]
   });
 
-  // ========== REFS ==========
   const pawnsRef = useRef(pawns);
   pawnsRef.current = pawns;
   const currentUserRef = useRef(currentUser);
@@ -323,67 +284,61 @@ const [dailyBonusClaimed, setDailyBonusClaimed] = useState(false);
 
   const ws = useRef(null);
   const agoraEngine = useRef(null);
-  // ========== INITIALIZE AGORA VOICE ==========
-const initializeAgoraVoice = async () => {
-  try {
-    if (agoraEngine.current) return true;
 
-    const engine = createAgoraRtcEngine();
-    agoraEngine.current = engine;
+  const initializeAgoraVoice = async () => {
+    try {
+      if (agoraEngine.current) return true;
+      const engine = createAgoraRtcEngine();
+      agoraEngine.current = engine;
+      engine.initialize({
+        appId: AGORA_APP_ID,
+        channelProfile: ChannelProfileType.ChannelProfileCommunication,
+      });
+      engine.enableAudio();
+      return true;
+    } catch (error) {
+      console.warn('Agora initialization error:', error);
+      agoraEngine.current = null;
+      return false;
+    }
+  };
 
-    engine.initialize({
-      appId: AGORA_APP_ID,
-      channelProfile:
-        ChannelProfileType.ChannelProfileCommunication,
-    });
-
-    engine.enableAudio();
-
-    return true;
-  } catch (error) {
-    console.warn('Agora initialization error:', error);
-    agoraEngine.current = null;
-    return false;
-  }
-};
   const currentTurn = activeColors[turnIndex] || activeColors[0] || 'BLUE';
   
-// ========== 30 SECOND TURN TIMER ==========
-useEffect(() => {
-  if (!gameMode || showPodiumBoard) return;
-
-  if (hasRolled || isMoving || isRolling) return;
-
-  setTurnTimeLeft(30);
-
-  const timer = setInterval(() => {
-    setTurnTimeLeft((prev) => {
-      if (prev <= 1) {
-        clearInterval(timer);
-
-        setTimeout(() => {
-          handleTimeoutMiss();
-        }, 300);
-
-        return 0;
+  // Hardware Back Button Handler
+  useEffect(() => {
+    const onBackPress = () => {
+      if (gameMode) {
+        handleExitGame();
+        return true;
       }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [gameMode, roomCode]);
 
-      return prev - 1;
-    });
-  }, 1000);
+  useEffect(() => {
+    if (!gameMode || showPodiumBoard) return;
+    if (hasRolled || isMoving || isRolling) return;
 
-  return () => clearInterval(timer);
+    setTurnTimeLeft(30);
+    const timer = setInterval(() => {
+      setTurnTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setTimeout(() => {
+            handleTimeoutMiss();
+          }, 300);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-}, [
-  turnIndex,
-  gameMode,
-  showPodiumBoard,
-  hasRolled,
-  isMoving,
-  isRolling
-]);
+    return () => clearInterval(timer);
+  }, [turnIndex, gameMode, showPodiumBoard, hasRolled, isMoving, isRolling]);
   
-  // ========== SUPABASE USER UPSERT & HEARTBEAT ==========
   const syncUserToCloud = async (userObj) => {
     if (!userObj?.playerId) return;
     try {
@@ -397,7 +352,7 @@ useEffect(() => {
           player_id: String(userObj.playerId),
           name: userObj.name || 'Player',
           email: userObj.email,
-          coins: Number(userObj.coins || 500),
+          coins: Number(userObj.coins || 2000),
           avatar: userObj.avatar || '👸',
           last_seen: new Date().toISOString()
         })
@@ -426,7 +381,6 @@ useEffect(() => {
     } catch (e) {}
   };
 
-  // Auto Load User on App Launch
   useEffect(() => {
     (async () => {
       try {
@@ -441,7 +395,6 @@ useEffect(() => {
     })();
   }, []);
 
-  // Background Sync Interval (Every 4 seconds)
   useEffect(() => {
     if (!currentUser?.playerId) return;
 
@@ -460,7 +413,6 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, [currentUser?.playerId]);
 
-  // ========== AUTH FUNCTIONS (UPDATED WITH CLOUD LOGIN/SIGNUP) ==========
   const handleAuthSubmit = async () => {
     try {
       const email = emailInput.trim().toLowerCase();
@@ -497,7 +449,7 @@ useEffect(() => {
           name: username,
           email,
           password,
-          coins: 500,
+          coins: 2000,
           avatar: '👸'
         };
 
@@ -522,8 +474,6 @@ useEffect(() => {
         );
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.log('Signup database error:', errorText);
           Alert.alert('Error', 'Could not create account.');
           return;
         }
@@ -534,7 +484,6 @@ useEffect(() => {
         return;
       }
 
-      // ========== CLOUD LOGIN ==========
       if (authMode === 'LOGIN') {
         if (!password) {
           Alert.alert('Error', 'Please enter your password.');
@@ -592,7 +541,6 @@ useEffect(() => {
         return;
       }
 
-      // ========== FORGOT PASSWORD ==========
       if (authMode === 'FORGOT') {
         if (!newPasswordInput || newPasswordInput.length < 6) {
           Alert.alert('Error', 'New password must be at least 6 characters.');
@@ -633,7 +581,6 @@ useEffect(() => {
         setNewPasswordInput('');
       }
     } catch (error) {
-      console.log('Auth Error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
@@ -643,7 +590,7 @@ useEffect(() => {
       playerId: `guest_${Date.now()}`,
       name: 'Guest Player',
       email: `guest_${Date.now()}@ludo.app`,
-      coins: 500,
+      coins: 2000,
       isGuest: true,
       avatar: '👤'
     };
@@ -671,46 +618,27 @@ useEffect(() => {
       console.warn('Error leaving voice channel:', e);
     }
   };
-// ========== JOIN AGORA VOICE CHANNEL ==========
-const joinAgoraVoiceChannel = async () => {
-  try {
-    const roomId = roomCodeRef.current;
 
-    if (!roomId) {
-      console.warn('Voice channel: Room code missing');
+  const joinAgoraVoiceChannel = async () => {
+    try {
+      const roomId = roomCodeRef.current;
+      if (!roomId) return false;
+
+      const initialized = await initializeAgoraVoice();
+      if (!initialized || !agoraEngine.current) return false;
+
+      await agoraEngine.current.joinChannel(null, `ludo_${roomId}`, 0, {
+        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
+        channelProfile: ChannelProfileType.ChannelProfileCommunication,
+      });
+
+      await agoraEngine.current.muteLocalAudioStream(!isMicOn);
+      return true;
+    } catch (error) {
       return false;
     }
+  };
 
-    const initialized = await initializeAgoraVoice();
-
-    if (!initialized || !agoraEngine.current) {
-      console.warn('Voice channel: Agora initialization failed');
-      return false;
-    }
-
-    await agoraEngine.current.joinChannel(
-      null,
-      `ludo_${roomId}`,
-      0,
-      {
-        clientRoleType:
-          ClientRoleType.ClientRoleBroadcaster,
-        channelProfile:
-          ChannelProfileType.ChannelProfileCommunication,
-      }
-    );
-
-    await agoraEngine.current.muteLocalAudioStream(!isMicOn);
-
-    console.log('Joined Agora voice channel:', `ludo_${roomId}`);
-
-    return true;
-  } catch (error) {
-    console.warn('Error joining Agora voice channel:', error);
-    return false;
-  }
-};
-  // ========== HELPER FUNCTIONS ==========
   const deductUserCoins = async (amount) => {
     if (!currentUserRef.current) return false;
     if (currentUserRef.current.coins < amount) {
@@ -744,93 +672,73 @@ const joinAgoraVoiceChannel = async () => {
       });
     } catch (e) {}
   };
-  // ========== DAILY BONUS ==========
-const claimDailyBonus = async () => {
-  if (!currentUserRef.current?.playerId) return;
 
-  const playerId = currentUserRef.current.playerId;
-  const bonusKey = `@ludo_daily_bonus_${playerId}`;
-  const today = new Date().toDateString();
+  const claimDailyBonus = async () => {
+    if (!currentUserRef.current?.playerId) return;
 
-  try {
-    const lastClaimDate = await AsyncStorage.getItem(bonusKey);
+    const playerId = currentUserRef.current.playerId;
+    const bonusKey = `@ludo_daily_bonus_${playerId}`;
+    const today = new Date().toDateString();
 
-    if (lastClaimDate === today) {
+    try {
+      const lastClaimDate = await AsyncStorage.getItem(bonusKey);
+
+      if (lastClaimDate === today) {
+        setDailyBonusClaimed(true);
+        Alert.alert(
+          'Daily Bonus Already Claimed',
+          '🎁 Aaj ka Daily Bonus already claim ho chuka hai. Kal phir se claim karna!'
+        );
+        return;
+      }
+
+      const reward = 200;
+
+      const updatedUser = {
+        ...currentUserRef.current,
+        coins: Number(currentUserRef.current.coins || 0) + reward
+      };
+
+      currentUserRef.current = updatedUser;
+      setCurrentUser(updatedUser);
+
+      await AsyncStorage.setItem(
+        '@ludo_supreme_user',
+        JSON.stringify(updatedUser)
+      );
+      await AsyncStorage.setItem(bonusKey, today);
       setDailyBonusClaimed(true);
 
+      await syncUserCoinsToCloud(
+        updatedUser.playerId,
+        updatedUser.coins
+      );
+
       Alert.alert(
-        'Daily Bonus Already Claimed',
-        '🎁 Aaj ka Daily Bonus already claim ho chuka hai. Kal phir se claim karna!'
+        '🎉 Daily Bonus Claimed!',
+        `🪙 ${reward} Coins aapke account mein add kar diye gaye hain!`
       );
-      return;
+    } catch (error) {
+      Alert.alert('Error', 'Daily Bonus claim nahi ho saka. Please try again.');
     }
+  };
 
-    const reward = 100;
-
-    const updatedUser = {
-      ...currentUserRef.current,
-      coins: Number(currentUserRef.current.coins || 0) + reward
-    };
-
-    currentUserRef.current = updatedUser;
-    setCurrentUser(updatedUser);
-
-    await AsyncStorage.setItem(
-      '@ludo_supreme_user',
-      JSON.stringify(updatedUser)
-    );
-
-    await AsyncStorage.setItem(bonusKey, today);
-
-    setDailyBonusClaimed(true);
-
-    await syncUserCoinsToCloud(
-      updatedUser.playerId,
-      updatedUser.coins
-    );
-
-    Alert.alert(
-      '🎉 Daily Bonus Claimed!',
-      `🪙 ${reward} Coins aapke account mein add kar diye gaye hain!`
-    );
-
-  } catch (error) {
-    console.log('Daily Bonus Error:', error);
-
-    Alert.alert(
-      'Error',
-      'Daily Bonus claim nahi ho saka. Please try again.'
-    );
-  }
-};
-// ========== LOAD GLOBAL LEADERBOARD ==========
-const loadGlobalLeaderboard = async () => {
-  try {
-    const response = await fetch(
-      `${SUPABASE_REST_URL}/ludo_users?select=player_id,name,coins&order=coins.desc`,
-      {
-        headers: supabaseHeaders
+  const loadGlobalLeaderboard = async () => {
+    try {
+      const response = await fetch(
+        `${SUPABASE_REST_URL}/ludo_users?select=player_id,name,coins&order=coins.desc`,
+        { headers: supabaseHeaders }
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setCloudLeaderboardData(
+          [...data].sort((a, b) => Number(b.coins || 0) - Number(a.coins || 0))
+        );
       }
-    );
+    } catch (error) {}
+  };
 
-    if (!response.ok) {
-      console.log('Leaderboard load failed:', response.status);
-      return;
-    }
-
-    const data = await response.json();
-
-    if (Array.isArray(data)) {
-      setCloudLeaderboardData(
-        [...data].sort(
-          (a, b) => Number(b.coins || 0) - Number(a.coins || 0)
-        )
-      );
-    }
-  } catch (error) {
-    console.log('Leaderboard error:', error);
-  }
-};
   const recordRecentPlayer = async (playerObj) => {
     if (!currentUserRef.current || !playerObj?.id || playerObj.id === currentUserRef.current.playerId) return;
     try {
@@ -951,7 +859,6 @@ const loadGlobalLeaderboard = async () => {
              (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
   };
 
-  // ========== GAME LOGIC FUNCTIONS ==========
   const getValidMoves = (color, diceVal) => {
     const playerPawns = pawnsRef.current[color];
     if (!playerPawns) return [];
@@ -963,315 +870,141 @@ const loadGlobalLeaderboard = async () => {
     return validIndexes;
   };
 
-
   const getStrategicMoveIndex = (color, diceVal, validMoves) => {
-  if (!validMoves || validMoves.length === 0) return null;
-  if (validMoves.length === 1) return validMoves[0];
+    if (!validMoves || validMoves.length === 0) return null;
+    if (validMoves.length === 1) return validMoves[0];
 
-  const playerPawns = pawnsRef.current[color];
+    const playerPawns = pawnsRef.current[color];
 
-  // ==========================================
-  // EXTREME HARD COMPUTER AI
-  // ==========================================
-
-  const getEnemyThreat = (targetTrack, movingColor) => {
-    let threatScore = 0;
-
-    for (const enemy of activeColorsRef.current) {
-      if (enemy === movingColor) continue;
-      if (isTeammate(movingColor, enemy)) continue;
-
-      for (const enemyStep of pawnsRef.current[enemy]) {
-        if (enemyStep < 0 || enemyStep >= 51) continue;
-
-        const enemyTrack =
-          (START_INDEX[enemy] + enemyStep) % 52;
-
-        // Enemy se target tak distance
-        const distance =
-          (targetTrack - enemyTrack + 52) % 52;
-
-        // Enemy next dice roll mein capture kar sakta hai
-        if (distance >= 1 && distance <= 6) {
-          threatScore += (7 - distance) * 700;
-        }
-      }
-    }
-
-    return threatScore;
-  };
-
-
-  const canCaptureEnemy = (targetTrack, movingColor) => {
-    let captureScore = 0;
-
-    for (const enemy of activeColorsRef.current) {
-      if (enemy === movingColor) continue;
-      if (isTeammate(movingColor, enemy)) continue;
-
-      for (const enemyStep of pawnsRef.current[enemy]) {
-        if (enemyStep < 0 || enemyStep >= 51) continue;
-
-        const enemyTrack =
-          (START_INDEX[enemy] + enemyStep) % 52;
-
-        if (enemyTrack === targetTrack) {
-          captureScore += 10000;
-        }
-      }
-    }
-
-    return captureScore;
-  };
-
-
-  let bestMove = validMoves[0];
-  let bestScore = -Infinity;
-
-
-  for (const idx of validMoves) {
-    const currentStep = playerPawns[idx];
-
-    // Target position
-    const targetStep =
-      currentStep === -1
-        ? 0
-        : currentStep + diceVal;
-
-    let score = 0;
-
-
-    // ==========================================
-    // 1. FINISH GOTI = VERY HIGH PRIORITY
-    // ==========================================
-
-    if (targetStep === 56) {
-      score += 15000;
-    }
-
-
-    // ==========================================
-    // 2. HOME LANE PRIORITY
-    // ==========================================
-
-    if (targetStep >= 51 && targetStep < 56) {
-      score += 7000;
-
-      // Home ke jitna paas utna better
-      score += targetStep * 80;
-    }
-
-
-    // ==========================================
-    // 3. MAIN BOARD POSITION
-    // ==========================================
-
-    if (targetStep >= 0 && targetStep < 51) {
-
-      const targetTrack =
-        (START_INDEX[color] + targetStep) % 52;
-
-
-      // ======================================
-      // CAPTURE ENEMY = HIGHEST ATTACK
-      // ======================================
-
-      score += canCaptureEnemy(targetTrack, color);
-
-
-      // ======================================
-      // SAFE CELL
-      // ======================================
-
-      if (SAFE_INDEXES.includes(targetTrack)) {
-        score += 3500;
-      } else {
-
-        // Enemy attack danger check
-        const danger =
-          getEnemyThreat(targetTrack, color);
-
-        score -= danger;
-      }
-
-
-      // ======================================
-      // CURRENT PAWN DANGER CHECK
-      // Agar goti already danger mein hai aur
-      // move karke bach rahi hai
-      // ======================================
-
-      if (currentStep >= 0 && currentStep < 51) {
-
-        const currentTrack =
-          (START_INDEX[color] + currentStep) % 52;
-
-        if (!SAFE_INDEXES.includes(currentTrack)) {
-
-          const currentDanger =
-            getEnemyThreat(currentTrack, color);
-
-          const targetDanger =
-            SAFE_INDEXES.includes(targetTrack)
-              ? 0
-              : getEnemyThreat(targetTrack, color);
-
-          // Danger se escape karna smart move hai
-          if (currentDanger > targetDanger) {
-            score +=
-              Math.min(
-                currentDanger - targetDanger,
-                5000
-              );
+    const getEnemyThreat = (targetTrack, movingColor) => {
+      let threatScore = 0;
+      for (const enemy of activeColorsRef.current) {
+        if (enemy === movingColor) continue;
+        if (isTeammate(movingColor, enemy)) continue;
+        for (const enemyStep of pawnsRef.current[enemy]) {
+          if (enemyStep < 0 || enemyStep >= 51) continue;
+          const enemyTrack = (START_INDEX[enemy] + enemyStep) % 52;
+          const distance = (targetTrack - enemyTrack + 52) % 52;
+          if (distance >= 1 && distance <= 6) {
+            threatScore += (7 - distance) * 700;
           }
         }
       }
+      return threatScore;
+    };
 
+    const canCaptureEnemy = (targetTrack, movingColor) => {
+      let captureScore = 0;
+      for (const enemy of activeColorsRef.current) {
+        if (enemy === movingColor) continue;
+        if (isTeammate(movingColor, enemy)) continue;
+        for (const enemyStep of pawnsRef.current[enemy]) {
+          if (enemyStep < 0 || enemyStep >= 51) continue;
+          const enemyTrack = (START_INDEX[enemy] + enemyStep) % 52;
+          if (enemyTrack === targetTrack) {
+            captureScore += 10000;
+          }
+        }
+      }
+      return captureScore;
+    };
 
-      // ======================================
-      // FORWARD PROGRESS
-      // ======================================
+    let bestMove = validMoves[0];
+    let bestScore = -Infinity;
 
-      score += targetStep * 35;
-    }
+    for (const idx of validMoves) {
+      const currentStep = playerPawns[idx];
+      const targetStep = currentStep === -1 ? 0 : currentStep + diceVal;
+      let score = 0;
 
+      if (targetStep === 56) score += 15000;
+      if (targetStep >= 51 && targetStep < 56) {
+        score += 7000 + targetStep * 80;
+      }
 
-    // ==========================================
-    // 4. SIX PAR NEW GOTI NIKALNA
-    // ==========================================
+      if (targetStep >= 0 && targetStep < 51) {
+        const targetTrack = (START_INDEX[color] + targetStep) % 52;
+        score += canCaptureEnemy(targetTrack, color);
 
-    if (
-      diceVal === 6 &&
-      currentStep === -1
-    ) {
-      const activePawnCount =
-        playerPawns.filter(
-          step => step >= 0 && step < 56
-        ).length;
+        if (SAFE_INDEXES.includes(targetTrack)) {
+          score += 3500;
+        } else {
+          score -= getEnemyThreat(targetTrack, color);
+        }
 
-      // Board par kam goti ho to new goti
-      // nikalna useful hai
-      if (activePawnCount < 2) {
-        score += 2800;
-      } else if (activePawnCount < 3) {
-        score += 1400;
+        if (currentStep >= 0 && currentStep < 51) {
+          const currentTrack = (START_INDEX[color] + currentStep) % 52;
+          if (!SAFE_INDEXES.includes(currentTrack)) {
+            const currentDanger = getEnemyThreat(currentTrack, color);
+            const targetDanger = SAFE_INDEXES.includes(targetTrack) ? 0 : getEnemyThreat(targetTrack, color);
+            if (currentDanger > targetDanger) {
+              score += Math.min(currentDanger - targetDanger, 5000);
+            }
+          }
+        }
+        score += targetStep * 35;
+      }
+
+      if (diceVal === 6 && currentStep === -1) {
+        const activePawnCount = playerPawns.filter(step => step >= 0 && step < 56).length;
+        if (activePawnCount < 2) score += 2800;
+        else if (activePawnCount < 3) score += 1400;
+      }
+
+      score += Math.random() * 10;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = idx;
       }
     }
-
-
-    // ==========================================
-    // 5. LAST PART OF JOURNEY PRIORITY
-    // ==========================================
-
-    if (
-      currentStep >= 35 &&
-      currentStep < 51
-    ) {
-      score += 1000;
-    }
-
-
-    // ==========================================
-    // 6. RANDOM TIE BREAKER
-    // Same score par har baar same move na ho
-    // ==========================================
-
-    score += Math.random() * 10;
-
-
-    // ==========================================
-    // BEST MOVE SELECT
-    // ==========================================
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = idx;
-    }
-  }
-
-
-  return bestMove;
-};
+    return bestMove;
+  };
     
-const handleTimeoutMiss = () => {
-  const timedOutColor = currentTurn;
-  const newMissCount = (playerMissCount[timedOutColor] || 0) + 1;
+  const handleTimeoutMiss = () => {
+    if (showPodiumBoard || isMoving || isRolling) return;
 
-  setPlayerMissCount(prev => ({
-    ...prev,
-    [timedOutColor]: newMissCount
-  }));
+    const timedOutColor = currentTurn;
+    const newMissCount = (playerMissCount[timedOutColor] || 0) + 1;
 
-  // 3 chances khatam → player exit
-  if (newMissCount >= 3) {
-    const remainingColors = activeColors.filter(
-      color => color !== timedOutColor
-    );
+    setPlayerMissCount(prev => ({
+      ...prev,
+      [timedOutColor]: newMissCount
+    }));
 
-    // ===== ONLY 2 PLAYERS THE =====
-    if (remainingColors.length === 1) {
-      const winnerColor = remainingColors[0];
-      const finalRankings = [winnerColor, timedOutColor];
+    if (newMissCount >= 3) {
+      const remainingColors = activeColors.filter(color => color !== timedOutColor);
+      if (remainingColors.length === 1) {
+        const winnerColor = remainingColors[0];
+        const finalRankings = [winnerColor, timedOutColor];
 
+        setActiveColors(remainingColors);
+        setFinishedRankings(finalRankings);
+        setShowPodiumBoard(true);
+        setHasRolled(false);
+        setIsMoving(false);
+        setIsRolling(false);
+
+        if (winnerColor === myColorRef.current) addWinnerCoins(matchPrizePool);
+        updateUserGameStats(winnerColor === myColorRef.current);
+        sendMultiplayerSync(pawnsRef.current, 0, playerDices, false, finalRankings);
+        return;
+      }
+
+      const nextIdx = turnIndex % remainingColors.length;
       setActiveColors(remainingColors);
-      setFinishedRankings(finalRankings);
-      setShowPodiumBoard(true);
+      setTurnIndex(nextIdx);
       setHasRolled(false);
       setIsMoving(false);
       setIsRolling(false);
+      setTurnTimeLeft(30);
 
-      if (winnerColor === myColorRef.current) {
-        addWinnerCoins(matchPrizePool);
-      }
-
-      updateUserGameStats(
-        winnerColor === myColorRef.current
-      );
-
-      Alert.alert(
-        'PLAYER EXITED',
-        `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed. ${getBaseDynamicLabel(winnerColor)} wins!`
-      );
-
-      sendMultiplayerSync(
-        pawnsRef.current,
-        0,
-        playerDices,
-        false,
-        finalRankings
-      );
-
+      sendMultiplayerSync(pawnsRef.current, nextIdx, playerDices, false);
       return;
     }
 
-    // ===== 3 YA 4 PLAYERS THE =====
-    const nextIdx = turnIndex % remainingColors.length;
+    rollDice(false, true);
+  };
 
-    setActiveColors(remainingColors);
-    setTurnIndex(nextIdx);
-    setHasRolled(false);
-    setIsMoving(false);
-    setIsRolling(false);
-    setTurnTimeLeft(30);
-
-    Alert.alert(
-      'PLAYER EXITED',
-      `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed from the game.`
-    );
-
-    sendMultiplayerSync(
-      pawnsRef.current,
-      nextIdx,
-      playerDices,
-      false
-    );
-
-    return;
-  }
-
-  // 3 se kam miss hai → automatic dice roll
-  rollDice(false, true);
-};
   const nextTurn = (currentIdx = turnIndex, customActive = activeColors) => {
     const nextIdx = (currentIdx + 1) % customActive.length;
     setTurnIndex(nextIdx);
@@ -1285,17 +1018,8 @@ const handleTimeoutMiss = () => {
 
     if (!isBot && !isAutoTimeout) {
       if (gameMode === 'ONLINE' && currentTurn !== myColor) return;
-
-      if (
-        gameMode === 'HYBRID' &&
-        playerSlots[currentTurn] === 'ONLINE' &&
-        currentTurn !== myColor
-      ) return;
-
-      if (
-        gameMode === 'HYBRID' &&
-        playerSlots[currentTurn] === 'BOT'
-      ) return;
+      if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'ONLINE' && currentTurn !== myColor) return;
+      if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT') return;
     }
 
     setIsRolling(true);
@@ -1312,51 +1036,27 @@ const handleTimeoutMiss = () => {
         useNativeDriver: false
       }),
       Animated.sequence([
-        Animated.timing(diceBounceAnim, {
-          toValue: 1.35,
-          duration: 180,
-          useNativeDriver: false
-        }),
-        Animated.timing(diceBounceAnim, {
-          toValue: 0.85,
-          duration: 180,
-          useNativeDriver: false
-        }),
-        Animated.timing(diceBounceAnim, {
-          toValue: 1,
-          duration: 290,
-          useNativeDriver: false
-        }),
+        Animated.timing(diceBounceAnim, { toValue: 1.35, duration: 180, useNativeDriver: false }),
+        Animated.timing(diceBounceAnim, { toValue: 0.85, duration: 180, useNativeDriver: false }),
+        Animated.timing(diceBounceAnim, { toValue: 1, duration: 290, useNativeDriver: false }),
       ])
     ]).start();
 
-    // FINAL VALUE animation shuru hone se pehle hi lock hoti hai.
     const lockedFinalVal = Math.floor(Math.random() * 6) + 1;
-
     const shuffleSteps = [50, 70, 90, 110];
     for (let i = 0; i < shuffleSteps.length; i++) {
-      // Last animation frame hamesha locked final value dikhayega.
-      const rand = (
-        i === shuffleSteps.length - 1
-      )
-        ? lockedFinalVal
-        : Math.floor(Math.random() * 6) + 1;
-
+      const rand = (i === shuffleSteps.length - 1) ? lockedFinalVal : Math.floor(Math.random() * 6) + 1;
       updatePlayerDice(currentTurn, rand);
       await sleep(shuffleSteps[i]);
     }
 
-    // Animation ke baad bhi exactly wahi locked value set hogi.
     updatePlayerDice(currentTurn, lockedFinalVal);
     await sleep(200);
 
     setIsRolling(false);
     setHasRolled(true);
 
-    const newDices = {
-      ...playerDicesRef.current,
-      [currentTurn]: lockedFinalVal
-    };
+    const newDices = { ...playerDicesRef.current, [currentTurn]: lockedFinalVal };
     playerDicesRef.current = newDices;
 
     const validMoves = getValidMoves(currentTurn, lockedFinalVal);
@@ -1367,28 +1067,10 @@ const handleTimeoutMiss = () => {
         sendMultiplayerSync(pawnsRef.current, nextIdx, newDices, false);
       }, 700);
     } else if (isBot || isAutoTimeout || validMoves.length === 1) {
-      const bestMove = getStrategicMoveIndex(
-        currentTurn,
-        lockedFinalVal,
-        validMoves
-      );
-
-      setTimeout(
-        () => executeStepMovement(
-          currentTurn,
-          bestMove,
-          lockedFinalVal,
-          newDices
-        ),
-        400
-      );
+      const bestMove = getStrategicMoveIndex(currentTurn, lockedFinalVal, validMoves);
+      setTimeout(() => executeStepMovement(currentTurn, bestMove, lockedFinalVal, newDices), 400);
     } else {
-      sendMultiplayerSync(
-        pawnsRef.current,
-        turnIndex,
-        newDices,
-        true
-      );
+      sendMultiplayerSync(pawnsRef.current, turnIndex, newDices, true);
     }
   };
 
@@ -1462,8 +1144,6 @@ const handleTimeoutMiss = () => {
       setFinishedRankings(currentFinished);
       isCurrentColorWinnerNow = true;
       playSound('win');
-      const rankTitle = currentFinished.length === 1 ? '🥇 1st Place' : currentFinished.length === 2 ? '🥈 2nd Place' : '🥉 3rd Place';
-      Alert.alert('VICTORY!', `${getBaseDynamicLabel(color)} secured ${rankTitle}!`);
     }
 
     const activeRemaining = activeColors.filter((c) => !currentFinished.includes(c));
@@ -1477,9 +1157,7 @@ const handleTimeoutMiss = () => {
       setPawns(updatedPawns);
       setIsMoving(false);
 
-      if (currentFinished[0] === myColorRef.current) {
-        addWinnerCoins(matchPrizePool);
-      }
+      if (currentFinished[0] === myColorRef.current) addWinnerCoins(matchPrizePool);
       updateUserGameStats(currentFinished[0] === myColorRef.current);
       sendMultiplayerSync(updatedPawns, turnIndex, currentDices, false, currentFinished);
       return;
@@ -1517,207 +1195,227 @@ const handleTimeoutMiss = () => {
     }
   };
 
-  // ========== WEB SOCKET HANDLER ==========
+  // WebSocket with Auto-Reconnection
   useEffect(() => {
     if (!roomCode) return;
 
-    const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
-    const socket = new WebSocket(wsUrl);
-    ws.current = socket;
+    let reconnectTimer = null;
+    let isConnecting = false;
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ topic: `realtime:room_${roomCode}`, event: 'phx_join', payload: {}, ref: 'room_join_ref' }));
+    const connectWebSocket = () => {
+      if (isConnecting) return;
+      isConnecting = true;
 
-      if (isHostRef.current && currentUserRef.current) {
-        socket.send(JSON.stringify({
-          topic: `realtime:room_${roomCode}`,
-          event: 'broadcast',
-          payload: {
-            type: 'PLAYER_JOINED',
-            data: {
-              color: myColorRef.current,
-              name: currentUserRef.current.name,
-              id: currentUserRef.current.playerId,
-              avatar: userAvatarRef.current
-            }
-          },
-          ref: 'p_join_host'
-        }));
-      }
-    };
+      const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
+      const socket = new WebSocket(wsUrl);
+      ws.current = socket;
 
-    socket.onmessage = async (e) => {
-      try {
-        const message = JSON.parse(e.data);
-        if (message.event !== 'broadcast') return;
-        const type = message.payload?.type;
-        const data = message.payload?.data;
+      socket.onopen = () => {
+        isConnecting = false;
+        socket.send(JSON.stringify({ topic: `realtime:room_${roomCode}`, event: 'phx_join', payload: {}, ref: 'room_join_ref' }));
 
-        if (type === 'CHECK_ROOM_EXISTS') {
-          if (!isHostRef.current || !currentUserRef.current) return;
-
-          const occupied = new Set([
-            ...Object.keys(roomPlayersRef.current),
-            myColorRef.current
-          ]);
-
-          const active = activeColorsRef.current || [];
-          const slots = playerSlotsRef.current || {};
-
-          // Assign only to an ONLINE slot. Team rooms fill GREEN (Team A partner)
-          // before RED/YELLOW, instead of simply taking the first empty color.
-          const preferredOrder = playTypeRef.current === 'TEAM'
-            ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
-            : active;
-
-          const available = preferredOrder.filter(
-            color =>
-              active.includes(color) &&
-              slots[color] === 'ONLINE' &&
-              !occupied.has(color)
-          );
-
-          const assignedColor = available[0];
-
-          if (!assignedColor) {
-            socket.send(JSON.stringify({
-              topic: `realtime:room_${roomCodeRef.current}`,
-              event: 'broadcast',
-              payload: { type: 'ROOM_FULL', data: {} },
-              ref: 'room_full'
-            }));
-            return;
-          }
-
-          // FIX: Ensure we send the full current roster so guest gets all player names
-          const currentRoster = roomPlayersRef.current || {};
+        if (isHostRef.current && currentUserRef.current) {
           socket.send(JSON.stringify({
-            topic: `realtime:room_${roomCodeRef.current}`,
+            topic: `realtime:room_${roomCode}`,
             event: 'broadcast',
             payload: {
-              type: 'ROOM_EXISTS_CONFIRMED',
+              type: 'PLAYER_JOINED',
               data: {
-                hostName: currentUserRef.current.name,
-                hostAvatar: userAvatarRef.current,
-                hostColor: myColorRef.current,
-                activeColors: activeColorsRef.current,
-                playType: playTypeRef.current,
-                entryFee: selectedEntryFeeRef.current,
-                syncedPlayerSlots: playerSlotsRef.current,
-                syncedRoomPlayers: currentRoster, // 👈 Full roster bhej rahe hain
-                assignedColor: assignedColor
+                color: myColorRef.current,
+                name: currentUserRef.current.name,
+                id: currentUserRef.current.playerId,
+                avatar: userAvatarRef.current
               }
             },
-            ref: 'confirm_ack'
+            ref: 'p_join_host'
           }));
         }
-        else if (type === 'CHAT_MESSAGE') {
-          setChatMessages(prev => [...prev, data]);
-        }
-        else if (type === 'VOICE_STATUS_UPDATE') {
-          setVoiceUsers(prev => ({ ...prev, [data.color]: data.isMicOn }));
-        }
-        else if (type === 'PLAYER_JOINED') {
-          const updatedRoster = {
-            ...roomPlayersRef.current,
-            [data.color]: { name: data.name, id: data.id, avatar: data.avatar }
-          };
-          roomPlayersRef.current = updatedRoster;
-          setRoomPlayers(updatedRoster);
-          recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
+      };
 
-          if (isHostRef.current && currentUserRef.current) {
+      socket.onclose = () => {
+        isConnecting = false;
+        reconnectTimer = setTimeout(() => {
+          if (roomCodeRef.current) {
+            connectWebSocket();
+          }
+        }, 3000);
+      };
+
+      socket.onerror = () => {
+        socket.close();
+      };
+
+      socket.onmessage = async (e) => {
+        try {
+          const message = JSON.parse(e.data);
+          if (message.event !== 'broadcast') return;
+          const type = message.payload?.type;
+          const data = message.payload?.data;
+
+          if (type === 'CHECK_ROOM_EXISTS') {
+            if (!isHostRef.current || !currentUserRef.current) return;
+
+            const occupied = new Set([
+              ...Object.keys(roomPlayersRef.current),
+              myColorRef.current
+            ]);
+
+            const active = activeColorsRef.current || [];
+            const slots = playerSlotsRef.current || {};
+
+            const preferredOrder = playTypeRef.current === 'TEAM'
+              ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
+              : active;
+
+            const available = preferredOrder.filter(
+              color =>
+                active.includes(color) &&
+                slots[color] === 'ONLINE' &&
+                !occupied.has(color)
+            );
+
+            const assignedColor = available[0];
+
+            if (!assignedColor) {
+              socket.send(JSON.stringify({
+                topic: `realtime:room_${roomCodeRef.current}`,
+                event: 'broadcast',
+                payload: { type: 'ROOM_FULL', data: {} },
+                ref: 'room_full'
+              }));
+              return;
+            }
+
+            const currentRoster = roomPlayersRef.current || {};
             socket.send(JSON.stringify({
               topic: `realtime:room_${roomCodeRef.current}`,
               event: 'broadcast',
-              payload: { type: 'ROSTER_UPDATE_FULL', data: updatedRoster },
-              ref: 'roster_full'
+              payload: {
+                type: 'ROOM_EXISTS_CONFIRMED',
+                data: {
+                  hostName: currentUserRef.current.name,
+                  hostAvatar: userAvatarRef.current,
+                  hostColor: myColorRef.current,
+                  activeColors: activeColorsRef.current,
+                  playType: playTypeRef.current,
+                  entryFee: selectedEntryFeeRef.current,
+                  syncedPlayerSlots: playerSlotsRef.current,
+                  syncedRoomPlayers: currentRoster,
+                  assignedColor: assignedColor
+                }
+              },
+              ref: 'confirm_ack'
             }));
           }
-        }
-        else if (type === 'ROSTER_UPDATE_FULL') {
-          // Overwrite local roster with host's canonical version
-          roomPlayersRef.current = data;
-          setRoomPlayers(data);
-        }
-        else if (type === 'ROSTER_UPDATE') {
-          const merged = { ...roomPlayersRef.current, [data.color]: { name: data.name, id: data.id, avatar: data.avatar } };
-          roomPlayersRef.current = merged;
-          setRoomPlayers(merged);
-          recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
-        }
-        else if (type === 'PLAYER_LEFT_MATCH') {
-          const leftColor = data.color;
-          const leftName = data.name || leftColor;
-          if (activeColorsRef.current.length <= 2) {
-            Alert.alert('Opponent Left', `${leftName} has left the match. You won!`);
-            setShowPodiumBoard(true);
-            setFinishedRankings([myColorRef.current, leftColor]);
-            if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) {
-              addWinnerCoins(matchPrizePool);
-            }
-            updateUserGameStats(true);
-          } else {
-            const remainingActive = activeColorsRef.current.filter(c => c !== leftColor);
-            setActiveColors(remainingActive);
-            Alert.alert('Player Disconnected', `${leftName} has left the match.`);
-            if (currentTurn === leftColor) {
-              const nextIdx = nextTurn();
-              sendMultiplayerSync(pawnsRef.current, nextIdx, playerDicesRef.current, false);
-            }
+          else if (type === 'CHAT_MESSAGE') {
+            setChatMessages(prev => [...prev, data]);
           }
-        }
-        else if (type === 'START_MATCH') {
-          if (!isHostRef.current) {
-            await deductUserCoins(data.entryFee || 50);
+          else if (type === 'VOICE_STATUS_UPDATE') {
+            setVoiceUsers(prev => ({ ...prev, [data.color]: data.isMicOn }));
           }
-          if (data.activeColors) setActiveColors(data.activeColors);
-          if (data.playType) setPlayType(data.playType);
-          if (data.prizePool) setMatchPrizePool(data.prizePool);
-          if (data.syncedRoomPlayers) {
-            roomPlayersRef.current = data.syncedRoomPlayers;
-            setRoomPlayers(data.syncedRoomPlayers);
-          }
-          if (data.playerSlots) {
-            playerSlotsRef.current = data.playerSlots;
-            setPlayerSlots(data.playerSlots);
-          }
-          setOnlineLobbyModal(false);
-          setGameMode(data.playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
-          joinAgoraVoiceChannel();
-        }
-        else if (type === 'SYNC_GAME') {
-          // Supabase can echo our own broadcast back to this socket. Ignore that echo
-          // so an older packet cannot overwrite the locally locked final dice value.
-          if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
+          else if (type === 'PLAYER_JOINED') {
+            const updatedRoster = {
+              ...roomPlayersRef.current,
+              [data.color]: { name: data.name, id: data.id, avatar: data.avatar }
+            };
+            roomPlayersRef.current = updatedRoster;
+            setRoomPlayers(updatedRoster);
+            recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
 
-          setOnlineLobbyModal(false);
-          setGameMode((current) => current || (playType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
-          if (data.newPawns) setPawns(data.newPawns);
-          if (data.nextTurnIdx !== undefined) setTurnIndex(data.nextTurnIdx);
-          if (data.updatedDices) {
-            playerDicesRef.current = data.updatedDices;
-            setPlayerDices(data.updatedDices);
-          }
-          if (data.rolled !== undefined) setHasRolled(data.rolled);
-          if (data.syncedColors) setActiveColors(data.syncedColors);
-          if (data.syncedPlayType) setPlayType(data.syncedPlayType);
-          if (data.rankings && data.rankings.length > 0) {
-            setFinishedRankings(data.rankings);
-            setShowPodiumBoard(true);
-            if (data.rankings[0] === myColorRef.current) {
-              addWinnerCoins(matchPrizePool);
+            if (isHostRef.current && currentUserRef.current) {
+              socket.send(JSON.stringify({
+                topic: `realtime:room_${roomCodeRef.current}`,
+                event: 'broadcast',
+                payload: { type: 'ROSTER_UPDATE_FULL', data: updatedRoster },
+                ref: 'roster_full'
+              }));
             }
-            updateUserGameStats(data.rankings[0] === myColorRef.current);
           }
-        }
-      } catch (err) {}
+          else if (type === 'ROSTER_UPDATE_FULL') {
+            roomPlayersRef.current = data;
+            setRoomPlayers(data);
+          }
+          else if (type === 'ROSTER_UPDATE') {
+            const merged = { ...roomPlayersRef.current, [data.color]: { name: data.name, id: data.id, avatar: data.avatar } };
+            roomPlayersRef.current = merged;
+            setRoomPlayers(merged);
+            recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
+          }
+          else if (type === 'PLAYER_LEFT_MATCH') {
+            const leftColor = data.color;
+            const leftName = data.name || leftColor;
+            if (activeColorsRef.current.length <= 2) {
+              Alert.alert('Opponent Left', `${leftName} has left the match. You won!`);
+              setShowPodiumBoard(true);
+              setFinishedRankings([myColorRef.current, leftColor]);
+              if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) {
+                addWinnerCoins(matchPrizePool);
+              }
+              updateUserGameStats(true);
+            } else {
+              const remainingActive = activeColorsRef.current.filter(c => c !== leftColor);
+              setActiveColors(remainingActive);
+              Alert.alert('Player Disconnected', `${leftName} has left the match.`);
+              if (currentTurn === leftColor) {
+                const nextIdx = nextTurn();
+                sendMultiplayerSync(pawnsRef.current, nextIdx, playerDicesRef.current, false);
+              }
+            }
+          }
+          else if (type === 'START_MATCH') {
+            if (!isHostRef.current) {
+              await deductUserCoins(data.entryFee || 50);
+            }
+            if (data.activeColors) setActiveColors(data.activeColors);
+            if (data.playType) setPlayType(data.playType);
+            if (data.prizePool) setMatchPrizePool(data.prizePool);
+            if (data.syncedRoomPlayers) {
+              roomPlayersRef.current = data.syncedRoomPlayers;
+              setRoomPlayers(data.syncedRoomPlayers);
+            }
+            if (data.playerSlots) {
+              playerSlotsRef.current = data.playerSlots;
+              setPlayerSlots(data.playerSlots);
+            }
+            setOnlineLobbyModal(false);
+            setGameMode(data.playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
+            joinAgoraVoiceChannel();
+          }
+          else if (type === 'SYNC_GAME') {
+            if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
+
+            setOnlineLobbyModal(false);
+            setGameMode((current) => current || (playType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            if (data.newPawns) setPawns(data.newPawns);
+            if (data.nextTurnIdx !== undefined) setTurnIndex(data.nextTurnIdx);
+            if (data.updatedDices) {
+              playerDicesRef.current = data.updatedDices;
+              setPlayerDices(data.updatedDices);
+            }
+            if (data.rolled !== undefined) setHasRolled(data.rolled);
+            if (data.syncedColors) setActiveColors(data.syncedColors);
+            if (data.syncedPlayType) setPlayType(data.syncedPlayType);
+            if (data.rankings && data.rankings.length > 0) {
+              setFinishedRankings(data.rankings);
+              setShowPodiumBoard(true);
+              if (data.rankings[0] === myColorRef.current) {
+                addWinnerCoins(matchPrizePool);
+              }
+              updateUserGameStats(data.rankings[0] === myColorRef.current);
+            }
+          }
+        } catch (err) {}
+      };
     };
 
-    return () => { socket.close(); };
+    connectWebSocket();
+
+    return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws.current) ws.current.close();
+    };
   }, [roomCode]);
 
-  // ========== JOIN FUNCTIONS (WITH FORCED CODE SUPPORT) ==========
   const joinOnlineRoom = (forcedCode = null) => {
     const code = (forcedCode || inputRoomCode).trim();
     if (code.length < 4) {
@@ -1757,7 +1455,6 @@ const handleTimeoutMiss = () => {
           const data = message.payload.data;
           const assignedColor = data.assignedColor;
           
-          // FIX: Use the roster sent by the host as the base, then add this guest
           const basePlayers = data.syncedRoomPlayers || {};
           const updatedPlayers = {
             ...basePlayers,
@@ -1854,7 +1551,6 @@ const handleTimeoutMiss = () => {
           const data = message.payload.data;
           const assignedColor = data.assignedColor;
           
-          // FIX: Use the roster sent by the host as the base
           const basePlayers = data.syncedRoomPlayers || {};
           const updatedPlayers = {
             ...basePlayers,
@@ -1913,7 +1609,6 @@ const handleTimeoutMiss = () => {
     }, 4500);
   };
 
-  // ========== START HOST / BOT / PASS & PLAY ==========
   const startOnlineHost = () => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setRoomCode(code);
@@ -1955,41 +1650,21 @@ const handleTimeoutMiss = () => {
     setBotSelectModal(false);
     setGameMode('BOT');
   };
-// ========== COMPUTER / TEAM BOT AUTO PLAY ==========
-useEffect(() => {
 
-  // Normal VS COMPUTER mode
-  const isNormalBotTurn =
-    gameMode === 'BOT' &&
-    currentTurn !== 'BLUE';
+  useEffect(() => {
+    const isNormalBotTurn = gameMode === 'BOT' && currentTurn !== 'BLUE';
+    const isHybridBotTurn = gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT';
 
-  // TEAM UP / HYBRID mode mein jis player ka slot BOT hai
-  const isHybridBotTurn =
-    gameMode === 'HYBRID' &&
-    playerSlots[currentTurn] === 'BOT';
+    if (!isNormalBotTurn && !isHybridBotTurn) return;
+    if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
 
-  // Agar current turn BOT ka nahi hai to kuch mat karo
-  if (!isNormalBotTurn && !isHybridBotTurn) return;
+    const botTimer = setTimeout(() => {
+      rollDice(true);
+    }, 800);
 
-  // Agar dice already roll ho chuka hai ya movement chal raha hai
-  if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
+    return () => clearTimeout(botTimer);
+  }, [gameMode, currentTurn, turnIndex, playerSlots, hasRolled, isMoving, isRolling, showPodiumBoard]);
 
-  const botTimer = setTimeout(() => {
-    rollDice(true);
-  }, 800);
-
-  return () => clearTimeout(botTimer);
-
-}, [
-  gameMode,
-  currentTurn,
-  turnIndex,
-  playerSlots,
-  hasRolled,
-  isMoving,
-  isRolling,
-  showPodiumBoard
-]);
   const startCustomPassPlay = () => {
     let colors, defaultRoomPlayers = {};
     if (playType === 'SOLO') {
@@ -2054,7 +1729,7 @@ useEffect(() => {
           data: { 
             activeColors, 
             playType, 
-            syncedRoomPlayers: roomPlayersRef.current, // 👈 Use ref to ensure latest
+            syncedRoomPlayers: roomPlayersRef.current, 
             entryFee: selectedEntryFee, 
             prizePool: totalPool, 
             playerSlots: playerSlotsRef.current 
@@ -2072,7 +1747,6 @@ useEffect(() => {
     setGameMode(playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
   };
 
-  // ========== OTHER UI HELPERS ==========
   const copyMyPlayerId = async () => {
     if (!currentUser?.playerId) return;
     await Clipboard.setStringAsync(currentUser.playerId);
@@ -2143,18 +1817,14 @@ useEffect(() => {
     }
   };
 
-  // ========== SUPABASE CLOUD FUNCTIONS ==========
   const fetchCloudFriendList = async (myPlayerId) => {
     if (!myPlayerId) return;
-
     try {
       const filter = `(user_a.eq.${myPlayerId},user_b.eq.${myPlayerId})`;
-
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_friendships?or=${encodeURIComponent(filter)}`,
         { headers: supabaseHeaders }
       );
-
       const friendships = await response.json();
       if (!Array.isArray(friendships)) return;
 
@@ -2171,7 +1841,6 @@ useEffect(() => {
         `${SUPABASE_REST_URL}/ludo_users?player_id=in.(${friendIds.join(',')})`,
         { headers: supabaseHeaders }
       );
-
       const users = await usersResponse.json();
       if (!Array.isArray(users)) return;
 
@@ -2187,14 +1856,11 @@ useEffect(() => {
       }));
 
       setFriendsList(formattedFriends);
-    } catch (error) {
-      console.log('Friend list error:', error);
-    }
+    } catch (error) {}
   };
 
   const checkCloudFriendRequests = async () => {
     if (!currentUserRef.current?.playerId) return;
-
     try {
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_friend_requests?to_id=eq.${encodeURIComponent(
@@ -2202,19 +1868,13 @@ useEffect(() => {
         )}&status=eq.pending&order=created_at.desc`,
         { headers: supabaseHeaders }
       );
-
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setPendingRequests(data);
-      }
-    } catch (error) {
-      console.log('Friend request check error:', error);
-    }
+      if (Array.isArray(data)) setPendingRequests(data);
+    } catch (error) {}
   };
 
   const checkCloudGameInvites = async () => {
     if (!currentUserRef.current?.playerId) return;
-
     try {
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_game_invites?to_id=eq.${encodeURIComponent(
@@ -2222,7 +1882,6 @@ useEffect(() => {
         )}&status=eq.pending&order=created_at.desc`,
         { headers: supabaseHeaders }
       );
-
       const data = await response.json();
       if (Array.isArray(data)) {
         setIncomingInvitesList(data);
@@ -2237,19 +1896,15 @@ useEffect(() => {
           });
         }
       }
-    } catch (error) {
-      console.log('Invite check error:', error);
-    }
+    } catch (error) {}
   };
 
   const handleSearchUser = async () => {
     const query = searchQuery.trim();
-
     if (!query) {
       Alert.alert('Search', 'Please enter Player ID or Email.');
       return;
     }
-
     if (!currentUserRef.current?.playerId) return;
 
     setIsSearchingCloud(true);
@@ -2261,7 +1916,6 @@ useEffect(() => {
         `${SUPABASE_REST_URL}/ludo_users?or=${encodeURIComponent(filter)}&limit=1`,
         { headers: supabaseHeaders }
       );
-
       const data = await response.json();
       if (!Array.isArray(data) || data.length === 0) {
         Alert.alert('Not Found', 'No player found with this Player ID or Email.');
@@ -2282,7 +1936,6 @@ useEffect(() => {
         avatar: user.avatar || '👤'
       });
     } catch (error) {
-      console.log('Search user error:', error);
       Alert.alert('Error', 'Could not search player.');
     } finally {
       setIsSearchingCloud(false);
@@ -2290,10 +1943,7 @@ useEffect(() => {
   };
 
   const sendRealtimeFriendRequest = async (targetUser) => {
-    if (!currentUserRef.current?.playerId || (!targetUser?.playerId && !targetUser?.id)) {
-      return;
-    }
-
+    if (!currentUserRef.current?.playerId || (!targetUser?.playerId && !targetUser?.id)) return;
     const targetId = targetUser.playerId || targetUser.id;
     const myId = currentUserRef.current.playerId;
 
@@ -2308,21 +1958,9 @@ useEffect(() => {
         `${SUPABASE_REST_URL}/ludo_friendships?or=${encodeURIComponent(`(${friendshipFilter})`)}`,
         { headers: supabaseHeaders }
       );
-
       const friendshipData = await existingFriend.json();
       if (Array.isArray(friendshipData) && friendshipData.length > 0) {
         Alert.alert('Already Friends', 'This player is already in your friend list.');
-        return;
-      }
-
-      const existingRequestResponse = await fetch(
-        `${SUPABASE_REST_URL}/ludo_friend_requests?from_id=eq.${encodeURIComponent(myId)}&to_id=eq.${encodeURIComponent(targetId)}&status=eq.pending`,
-        { headers: supabaseHeaders }
-      );
-
-      const existingRequests = await existingRequestResponse.json();
-      if (Array.isArray(existingRequests) && existingRequests.length > 0) {
-        Alert.alert('Already Sent', 'Friend request already sent.');
         return;
       }
 
@@ -2349,7 +1987,6 @@ useEffect(() => {
       setSearchedUserResult(null);
       setSearchQuery('');
     } catch (error) {
-      console.log('Send friend request error:', error);
       Alert.alert('Error', 'Could not send friend request.');
     }
   };
@@ -2384,21 +2021,18 @@ useEffect(() => {
       await checkCloudFriendRequests();
       await fetchCloudFriendList(myId);
     } catch (error) {
-      console.log('Accept friend error:', error);
       Alert.alert('Error', 'Could not accept friend request.');
     }
   };
 
   const sendFriendInvite = async (friend) => {
     if (!friend || !currentUserRef.current?.playerId) return;
-
     if (!roomCode) {
       Alert.alert('Create Room First', 'Please create an online room first, then invite your friend.');
       return;
     }
 
     const friendId = friend.playerId || friend.id;
-
     try {
       const response = await fetch(`${SUPABASE_REST_URL}/ludo_game_invites`, {
         method: 'POST',
@@ -2423,14 +2057,12 @@ useEffect(() => {
       }
 
       Alert.alert('Invite Sent 🎮', `Invitation sent to ${friend.name}.`);
-
       setFriendsList((previous) =>
         previous.map((item) =>
           String(item.id) === String(friendId) ? { ...item, isInvited: true } : item
         )
       );
     } catch (error) {
-      console.log('Send invite error:', error);
       Alert.alert('Error', 'Could not send game invite.');
     }
   };
@@ -2455,22 +2087,16 @@ useEffect(() => {
       await checkCloudGameInvites();
 
       const code = String(invite.roomCode);
-
       if (invite.playType === 'TEAM') {
         setTeamJoinCode(code);
         setHybridTeamModal(true);
-        setTimeout(() => {
-          joinTeamOnlineRoom(code);
-        }, 500);
+        setTimeout(() => { joinTeamOnlineRoom(code); }, 500);
       } else {
         setInputRoomCode(code);
         setOnlineScreen(true);
-        setTimeout(() => {
-          joinOnlineRoom(code);
-        }, 500);
+        setTimeout(() => { joinOnlineRoom(code); }, 500);
       }
     } catch (error) {
-      console.log('Accept invite error:', error);
       Alert.alert('Error', 'Could not join the invited room.');
     }
   };
@@ -2490,15 +2116,11 @@ useEffect(() => {
           body: JSON.stringify({ status: 'declined' })
         });
       }
-
       setIncomingInvite(null);
       await checkCloudGameInvites();
-    } catch (error) {
-      console.log('Decline invite error:', error);
-    }
+    } catch (error) {}
   };
 
-  // ========== RENDER FUNCTIONS ==========
   const renderCell = (row, col) => {
     if (row < 6 && col < 6) return null;
     if (row < 6 && col > 8) return null;
@@ -2530,44 +2152,31 @@ useEffect(() => {
     return (
       <View key={`${row}-${col}`} style={[styles.cell, { left, top, backgroundColor: bgColor }]}>
         {isStar && <Text style={[styles.starCleanText, { transform: [{ rotate: inverseRot }] }]}>☆</Text>}
-        {arrowIcon !== '' && <Text style={[
-  styles.arrowCleanText,
-  {
-    color: arrowColor
-  }
-]}>
-  {arrowIcon}
-</Text>}
+        {arrowIcon !== '' && <Text style={[styles.arrowCleanText, { color: arrowColor }]}>{arrowIcon}</Text>}
       </View>
     );
   };
 
-  // ===== FIXED: getBaseDynamicLabel – ONLY uses roomPlayers for online/team modes =====
   const getBaseDynamicLabel = (color) => {
-    // 1. If we have a name in roomPlayers, it's always correct
-    if (roomPlayers[color]?.name) {
+    if (roomPlayers[color] && roomPlayers[color].name) {
       return roomPlayers[color].name;
     }
-
-    // 2. Fallback only for offline/local games
     if (playType === 'TEAM') {
-      if (color === 'BLUE') return roomPlayers['BLUE']?.name || 'Team A (Blue)';
-      if (color === 'GREEN') return roomPlayers['GREEN']?.name || 'Team A (Green)';
-      if (color === 'RED') return roomPlayers['RED']?.name || 'Team B (Red)';
-      if (color === 'YELLOW') return roomPlayers['YELLOW']?.name || 'Team B (Yellow)';
+      if (color === 'BLUE') return 'Team A (Blue)';
+      if (color === 'GREEN') return 'Team A (Green)';
+      if (color === 'RED') return 'Team B (Red)';
+      if (color === 'YELLOW') return 'Team B (Yellow)';
     } else {
-      if (color === myColor) return currentUser?.name || 'You';
-      if (color === 'BLUE') return 'You';
+      if (color === myColor) return currentUser ? currentUser.name : 'You';
+      if (color === 'BLUE') return 'Player 1';
       if (color === 'GREEN') return selectedPlayerCount === 2 ? 'Computer' : 'Player 3';
       if (color === 'RED') return 'Player 2';
       if (color === 'YELLOW') return 'Player 4';
     }
-    return `Player (${color})`;
+    return color;
   };
 
-  // UPDATED: renderBase – playerLabel removed
   const renderBase = (color, posStyle, isVertical) => {
-    const isPlayable = activeColors.includes(color) || finishedRankings.includes(color);
     const isRanked = finishedRankings.indexOf(color);
     const inverseRot = getInverseRotationAngle(myColor);
 
@@ -2590,15 +2199,12 @@ useEffect(() => {
             </Text>
           </View>
         )}
-        {/* playerLabel removed */}
       </View>
     );
   };
 
   const renderAllTokens = () => {
     const cellGroups = {};
-    const inverseRot = getInverseRotationAngle(myColor);
-
     ALL_COLORS.forEach((color) => {
       pawns[color].forEach((stepCount, idx) => {
         if (stepCount >= 0 && stepCount < 56) {
@@ -2640,14 +2246,10 @@ useEffect(() => {
             disabled={!hasRolled || !isMyTurn || isMoving}
             onPress={() => executeStepMovement(color, idx, playerDices[color])}
             style={[
-  styles.tokenWrapper,
-  {
-    left: finalLeft,
-    top: finalTop,
-    zIndex: isMyTurn ? 25 : 10 + idx
-  },
-  stepCount === 56 && { opacity: 0.3 }
-]}
+              styles.tokenWrapper,
+              { left: finalLeft, top: finalTop, zIndex: isMyTurn ? 25 : 10 + idx },
+              stepCount === 56 && { opacity: 0.3 }
+            ]}
           >
             <PinToken colorHex={colorHex} stackCount={stackCount} />
           </TouchableOpacity>
@@ -2664,7 +2266,6 @@ useEffect(() => {
     return '#2563eb';
   };
 
-  // UPDATED: renderPlayerCard – name in separate row at bottom
   const renderPlayerCard = (color, pinHex, isLeftDice = false) => {
     const isPlayable = activeColors.includes(color) && !finishedRankings.includes(color);
     if (!isPlayable) return <View style={styles.playerCardPlaceholder} />;
@@ -2699,7 +2300,6 @@ useEffect(() => {
           onPress={() => isCurrent && rollDice()}
           style={[styles.playerCard, isCurrent && styles.activeCardGlow]}
         >
-          {/* Upper row: dice, timer, avatar */}
           <View style={styles.cardRow}>
             {isLeftDice ? (
               <>
@@ -2738,7 +2338,6 @@ useEffect(() => {
             )}
           </View>
 
-          {/* 👇 Name row – full width at bottom */}
           <View style={styles.cardNameRow}>
             <Text style={styles.cardPlayerName} numberOfLines={1}>{playerName}</Text>
           </View>
@@ -2747,7 +2346,6 @@ useEffect(() => {
     );
   };
 
-  // ========== RENDER FRIENDS MODAL ==========
   const renderFriendsSquadModal = () => (
     <Modal transparent animationType="slide" visible={friendsModal}>
       <View style={styles.inviteModalOverlay}>
@@ -2897,7 +2495,6 @@ useEffect(() => {
     </Modal>
   );
 
-  // ========== COMPLETE APP RENDER ==========
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -3209,7 +2806,6 @@ useEffect(() => {
     );
   }
 
-  // Online Lobby
   if (onlineLobbyModal) {
     const isTeamMode = playType === 'TEAM';
     const opponentColors = activeColors.filter(c => c !== 'BLUE');
@@ -3347,7 +2943,6 @@ useEffect(() => {
     );
   }
 
-  // Dashboard
   if (!gameMode) {
     const winPercentage = userStats.totalPlayed > 0 ? Math.round((userStats.totalWon / userStats.totalPlayed) * 100) : 0;
     return (
@@ -3401,74 +2996,23 @@ useEffect(() => {
           </Modal>
         )}
         {dailyBonusModal && (
-          <Modal
-            transparent
-            animationType="fade"
-            visible={dailyBonusModal}
-          >
+          <Modal transparent animationType="fade" visible={dailyBonusModal}>
             <View style={styles.inviteModalOverlay}>
-              <View
-                style={[
-                  styles.glassCard,
-                  {
-                    borderColor: '#facc15',
-                    borderWidth: 2
-                  }
-                ]}
-              >
-                <Text style={styles.podiumTitleHeader}>
-                  🎁 DAILY BONUS
-                </Text>
-
-                <Text style={styles.podiumSubHeader}>
-                  Come back every day and collect your reward!
-                </Text>
-
-                <View
-                  style={{
-                    marginVertical: 20,
-                    alignItems: 'center'
-                  }}
-                >
+              <View style={[styles.glassCard, { borderColor: '#facc15', borderWidth: 2 }]}>
+                <Text style={styles.podiumTitleHeader}>🎁 DAILY BONUS</Text>
+                <Text style={styles.podiumSubHeader}>Come back every day and collect your reward!</Text>
+                <View style={{ marginVertical: 20, alignItems: 'center' }}>
                   <Text style={{ fontSize: 52 }}>🪙</Text>
-
-                  <Text
-                    style={{
-                      color: '#facc15',
-                      fontSize: 30,
-                      fontWeight: '900',
-                      marginTop: 8
-                    }}
-                  >
-                    +100 COINS
-                  </Text>
+                  <Text style={{ color: '#facc15', fontSize: 30, fontWeight: '900', marginTop: 8 }}>+200 COINS</Text>
                 </View>
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.gold3DButton}
-                  onPress={claimDailyBonus}
-                >
+                <TouchableOpacity activeOpacity={0.85} style={styles.gold3DButton} onPress={claimDailyBonus}>
                   <Text style={styles.gold3DButtonText}>
-                    {dailyBonusClaimed
-                      ? 'ALREADY CLAIMED TODAY ✓'
-                      : 'CLAIM DAILY BONUS 🎁'}
+                    {dailyBonusClaimed ? 'ALREADY CLAIMED TODAY ✓' : 'CLAIM DAILY BONUS 🎁'}
                   </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={[
-                    styles.darkSecondaryButton,
-                    { marginTop: 10 }
-                  ]}
-                  onPress={() => setDailyBonusModal(false)}
-                >
-                  <Text style={styles.darkSecondaryButtonText}>
-                    CLOSE
-                  </Text>
+                <TouchableOpacity activeOpacity={0.85} style={[styles.darkSecondaryButton, { marginTop: 10 }]} onPress={() => setDailyBonusModal(false)}>
+                  <Text style={styles.darkSecondaryButtonText}>CLOSE</Text>
                 </TouchableOpacity>
-
               </View>
             </View>
           </Modal>
@@ -3576,10 +3120,7 @@ useEffect(() => {
         {renderFriendsSquadModal()}
         <SafeAreaView style={styles.fulfilledTopActionCenterBar}>
           <View style={styles.topActionCenterInnerRow}>
-            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => {
-  loadGlobalLeaderboard();
-  setLeaderboardModal(true);
-}}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => { loadGlobalLeaderboard(); setLeaderboardModal(true); }}>
               <Text style={styles.megaFulfilledEmoji}>🏆</Text><Text style={styles.megaFulfilledText}>Leaderboard</Text>
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => { setFriendsModal(true); fetchCloudFriendList(currentUser?.playerId); }}>
@@ -3591,16 +3132,9 @@ useEffect(() => {
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setSettingsModal(true)}>
               <Text style={styles.megaFulfilledEmoji}>⚙️</Text><Text style={styles.megaFulfilledText}>Settings</Text>
             </TouchableOpacity>
-          <TouchableOpacity
-  activeOpacity={0.85}
-  style={styles.megaFulfilledButton}
-  onPress={() => setDailyBonusModal(true)}
->
-  <Text style={styles.megaFulfilledEmoji}>🎁</Text>
-  <Text style={styles.megaFulfilledText}>
-    Daily Bonus
-  </Text>
-</TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setDailyBonusModal(true)}>
+              <Text style={styles.megaFulfilledEmoji}>🎁</Text><Text style={styles.megaFulfilledText}>Daily Bonus</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
         <View style={styles.centerBannerProfileWrapPerfect}>
@@ -3626,7 +3160,6 @@ useEffect(() => {
     );
   }
 
-  // ========== GAME BOARD ==========
   const boardRotation = getBoardRotationAngle(myColor);
   const perspective = getPerspectiveLayout(myColor);
 
@@ -3636,7 +3169,6 @@ useEffect(() => {
       <Image source={require('./lobby_bg.png')} style={styles.inGameBgCover} resizeMode="cover" blurRadius={12} />
       <View style={styles.inGameBackdropShade} />
 
-      {/* Chat Modal */}
       <Modal transparent animationType="slide" visible={chatModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inviteModalOverlay}>
           <View style={[styles.glassCard, styles.chatModalBox]}>
@@ -3760,7 +3292,6 @@ useEffect(() => {
   );
 }
 
-// ========== STYLES ==========
 const styles = StyleSheet.create({
   royaleContainer: { flex:1, backgroundColor:'#0a0f1d', alignItems:'center', justifyContent:'space-between', paddingVertical:14, paddingHorizontal:16 },
   dashboardContainer: { flex:1, backgroundColor:'#0a0f1d', width:'100%', height:'100%' },
@@ -4022,25 +3553,9 @@ const styles = StyleSheet.create({
   playerCardPlaceholder: { width:'46%' },
   playerCard: { flexDirection:'column', alignItems:'center', justifyContent:'space-between', backgroundColor:'rgba(15,23,42,0.85)', paddingHorizontal:8, paddingVertical:6, borderRadius:12, borderWidth:1.5, borderColor:'#38bdf8', width:'100%' },
   activeCardGlow: { borderColor:'#facc15', backgroundColor:'rgba(30,58,138,0.9)', elevation:8, shadowColor:'#facc15', shadowOpacity:0.6, shadowRadius:10 },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  cardNameRow: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 2,
-    paddingHorizontal: 4,
-  },
-  cardPlayerName: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    width: '100%',
-  },
+  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  cardNameRow: { width: '100%', alignItems: 'center', marginTop: 2, paddingHorizontal: 4 },
+  cardPlayerName: { color: '#ffffff', fontSize: 10, fontWeight: 'bold', textAlign: 'center', width: '100%' },
   cardAvatarLeft: { flexDirection:'column', alignItems:'center', width:35 },
   cardAvatarRight: { flexDirection:'column', alignItems:'center', width:35 },
   cardDiceWrap: { padding:2 },
@@ -4073,25 +3588,6 @@ const styles = StyleSheet.create({
   baseInnerWhite: { width:'80%', height:'80%', backgroundColor:'#ffffff', borderRadius:6, justifyContent:'space-around', padding:8, borderWidth:1, borderColor:'#cbd5e1' },
   pocketRow: { flexDirection:'row', justifyContent:'space-around' },
   basePocket: { width:26, height:26, borderRadius:13 },
-  playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
-  playerLabelBottom: {
-    bottom: 4,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-  },
-  playerLabelTop: {
-    top: 4,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-  },
-  playerLabelRight: {
-    right: 4,
-    top: '50%',
-    width: '92%',
-    textAlign: 'center',
-  },
   centerHome: { position:'absolute', top:CELL_SIZE * 6, left:CELL_SIZE * 6, width:CELL_SIZE * 3, height:CELL_SIZE * 3, overflow:'hidden' },
   centerTriangleTop: { position:'absolute', top:0, left:0, width:0, height:0, borderLeftWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopWidth:(CELL_SIZE * 3) / 2, borderLeftColor:'transparent', borderRightColor:'transparent', borderTopColor:'#16a34a' },
   centerTriangleRight: { position:'absolute', top:0, right:0, width:0, height:0, borderTopWidth:(CELL_SIZE * 3) / 2, borderBottomWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopColor:'transparent', borderBottomColor:'transparent', borderRightColor:'#eab308' },
