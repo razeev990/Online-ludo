@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, SafeAreaView, 
-  Alert, Animated, Easing, StatusBar, ScrollView, Modal, Image, Switch, Share, 
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, BackHandler, 
-  PermissionsAndroid, AppState 
+import {
+  View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, SafeAreaView,
+  Alert, Animated, Easing, StatusBar, ScrollView, Modal, Image, Switch, Share,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, BackHandler,
+  PermissionsAndroid, AppState
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,8 +13,7 @@ import {
   ChannelProfileType,
   ClientRoleType
 } from 'react-native-agora';
-
-const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv'; 
+const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv';
 const SUPABASE_ANON_KEY = 'sb_publishable_DuyB_EEKvMkDk0QFxQykqg_ZXCMzTwo';
 const SUPABASE_REST_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1`;
 const AGORA_APP_ID = '110534b7d9ce4f1ea80f93494d69ffa5';
@@ -54,10 +53,10 @@ const HOME_PATHS = {
 };
 
 const BASE_SPOTS = {
-  BLUE: [[10.5,1.5],[10.5,3.5],[12.5,1.5],[12.5,3.5]],
-  RED: [[1.5,1.5],[1.5,3.5],[3.5,1.5],[3.5,3.5]],
-  GREEN: [[1.5,10.5],[1.5,12.5],[3.5,10.5],[3.5,12.5]],
-  YELLOW: [[10.5,10.5],[10.5,12.5],[12.5,10.5],[12.5,12.5]]
+  BLUE: [[11.0, 2.0], [11.0, 4.0], [13.0, 2.0], [13.0, 4.0]],
+  RED: [[2.0, 2.0], [2.0, 4.0], [4.0, 2.0], [4.0, 4.0]],
+  GREEN: [[2.0, 11.0], [2.0, 13.0], [4.0, 11.0], [4.0, 13.0]],
+  YELLOW: [[11.0, 11.0], [11.0, 13.0], [13.0, 11.0], [13.0, 13.0]]
 };
 
 const START_INDEX = { RED: 0, GREEN: 13, YELLOW: 26, BLUE: 39 };
@@ -102,7 +101,6 @@ const getBoardRotationAngle = (myColor) => {
   };
   return map[myColor] || '0deg';
 };
-
 const getInverseRotationAngle = (myColor) => {
   const map = {
     RED: '90deg',
@@ -112,17 +110,45 @@ const getInverseRotationAngle = (myColor) => {
   };
   return map[myColor] || '0deg';
 };
-
+const getPlayerLabelPositionStyle = (color, myColor) => {
+  const perspective = getPerspectiveLayout(myColor);
+  if (
+    color === perspective.topColor ||
+    color === perspective.leftColor
+  ) {
+    return 'playerLabelTop';
+  }
+  return 'playerLabelBottom';
+};
 const getPerspectiveLayout = (myColor) => {
   const layouts = {
-    RED: { leftColor: 'GREEN', topColor: 'YELLOW', bottomColor: 'RED', rightColor: 'BLUE' },
-    GREEN: { leftColor: 'YELLOW', topColor: 'BLUE', bottomColor: 'GREEN', rightColor: 'RED' },
-    YELLOW: { leftColor: 'BLUE', topColor: 'RED', bottomColor: 'YELLOW', rightColor: 'GREEN' },
-    BLUE: { leftColor: 'RED', topColor: 'GREEN', bottomColor: 'BLUE', rightColor: 'YELLOW' }
+    RED: {
+      leftColor: 'GREEN',
+      topColor: 'YELLOW',
+      bottomColor: 'RED',
+      rightColor: 'BLUE'
+    },
+    GREEN: {
+      leftColor: 'YELLOW',
+      topColor: 'BLUE',
+      bottomColor: 'GREEN',
+      rightColor: 'RED'
+    },
+    YELLOW: {
+      leftColor: 'BLUE',
+      topColor: 'RED',
+      bottomColor: 'YELLOW',
+      rightColor: 'GREEN'
+    },
+    BLUE: {
+      leftColor: 'RED',
+      topColor: 'GREEN',
+      bottomColor: 'BLUE',
+      rightColor: 'YELLOW'
+    }
   };
   return layouts[myColor] || layouts.BLUE;
 };
-
 const getPawnScreenCoords = (color, stepCount, idx) => {
   if (stepCount === -1) return BASE_SPOTS[color][idx];
   if (stepCount === 56) return [7,7];
@@ -161,6 +187,7 @@ const PinToken = ({ colorHex, stackCount }) => (
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
+  // ========== STATE ==========
   const [currentUser, setCurrentUser] = useState(null);
   const [authMode, setAuthMode] = useState('LOGIN');
   const [emailInput, setEmailInput] = useState('');
@@ -257,6 +284,7 @@ export default function App() {
     YELLOW: [-1,-1,-1,-1]
   });
 
+  // ========== REFS ==========
   const pawnsRef = useRef(pawns);
   pawnsRef.current = pawns;
   const currentUserRef = useRef(currentUser);
@@ -285,6 +313,94 @@ export default function App() {
   const ws = useRef(null);
   const agoraEngine = useRef(null);
 
+  // ========== BACK HANDLER ==========
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // 1. Close any open modal (priority order)
+      if (avatarModal) { setAvatarModal(false); return true; }
+      if (chatModal) { setChatModal(false); return true; }
+      if (dailyBonusModal) { setDailyBonusModal(false); return true; }
+      if (leaderboardModal) { setLeaderboardModal(false); return true; }
+      if (profileStatsModal) { setProfileStatsModal(false); return true; }
+      if (friendsModal) { setFriendsModal(false); return true; }
+      if (onlineLobbyModal) { setOnlineLobbyModal(false); return true; }
+      if (botSelectModal) { setBotSelectModal(false); return true; }
+      if (passPlayModal) { setPassPlayModal(false); return true; }
+      if (hybridTeamModal) { setHybridTeamModal(false); return true; }
+      if (onlineScreen) { setOnlineScreen(false); return true; }
+      if (showPodiumBoard) { setShowPodiumBoard(false); return true; }
+      if (settingsModal) { setSettingsModal(false); return true; }
+      if (incomingInvite) { setIncomingInvite(null); return true; }
+
+      // 2. Game in progress -> exit confirmation
+      if (gameMode) {
+        Alert.alert(
+          'Exit Game',
+          'Return to Main Lobby?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Quit Match',
+              style: 'destructive',
+              onPress: () => {
+                // Notify online players
+                if (
+                  (gameMode === 'ONLINE' || gameMode === 'HYBRID') &&
+                  ws.current &&
+                  ws.current.readyState === WebSocket.OPEN
+                ) {
+                  ws.current.send(
+                    JSON.stringify({
+                      topic: `realtime:room_${roomCode}`,
+                      event: 'broadcast',
+                      payload: {
+                        type: 'PLAYER_LEFT_MATCH',
+                        data: { color: myColor, name: currentUser?.name },
+                      },
+                      ref: 'exit_match',
+                    })
+                  );
+                }
+                resetGame();
+              },
+            },
+          ]
+        );
+        return true;
+      }
+
+      // 3. Lobby (dashboard) -> exit app
+      Alert.alert(
+        'Exit App',
+        'Are you sure you want to exit?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]
+      );
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, [
+    avatarModal,
+    chatModal,
+    dailyBonusModal,
+    leaderboardModal,
+    profileStatsModal,
+    friendsModal,
+    onlineLobbyModal,
+    botSelectModal,
+    passPlayModal,
+    hybridTeamModal,
+    onlineScreen,
+    showPodiumBoard,
+    settingsModal,
+    incomingInvite,
+    gameMode,
+  ]);
+
+  // ========== INITIALIZE AGORA VOICE ==========
   const initializeAgoraVoice = async () => {
     try {
       if (agoraEngine.current) return true;
@@ -292,7 +408,8 @@ export default function App() {
       agoraEngine.current = engine;
       engine.initialize({
         appId: AGORA_APP_ID,
-        channelProfile: ChannelProfileType.ChannelProfileCommunication,
+        channelProfile:
+          ChannelProfileType.ChannelProfileCommunication,
       });
       engine.enableAudio();
       return true;
@@ -302,26 +419,12 @@ export default function App() {
       return false;
     }
   };
-
   const currentTurn = activeColors[turnIndex] || activeColors[0] || 'BLUE';
   
-  // Hardware Back Button Handler
-  useEffect(() => {
-    const onBackPress = () => {
-      if (gameMode) {
-        handleExitGame();
-        return true;
-      }
-      return false;
-    };
-    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => subscription.remove();
-  }, [gameMode, roomCode]);
-
+  // ========== 30 SECOND TURN TIMER ==========
   useEffect(() => {
     if (!gameMode || showPodiumBoard) return;
     if (hasRolled || isMoving || isRolling) return;
-
     setTurnTimeLeft(30);
     const timer = setInterval(() => {
       setTurnTimeLeft((prev) => {
@@ -335,10 +438,17 @@ export default function App() {
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [turnIndex, gameMode, showPodiumBoard, hasRolled, isMoving, isRolling]);
+  }, [
+    turnIndex,
+    gameMode,
+    showPodiumBoard,
+    hasRolled,
+    isMoving,
+    isRolling
+  ]);
   
+  // ========== SUPABASE USER UPSERT & HEARTBEAT ==========
   const syncUserToCloud = async (userObj) => {
     if (!userObj?.playerId) return;
     try {
@@ -381,6 +491,7 @@ export default function App() {
     } catch (e) {}
   };
 
+  // Auto Load User on App Launch
   useEffect(() => {
     (async () => {
       try {
@@ -395,24 +506,23 @@ export default function App() {
     })();
   }, []);
 
+  // Background Sync Interval (Every 4 seconds)
   useEffect(() => {
     if (!currentUser?.playerId) return;
-
     updateLastSeen();
     checkCloudFriendRequests();
     checkCloudGameInvites();
     fetchCloudFriendList(currentUser.playerId);
-
     const interval = setInterval(() => {
       updateLastSeen();
       checkCloudFriendRequests();
       checkCloudGameInvites();
       fetchCloudFriendList(currentUser.playerId);
     }, 4000);
-
     return () => clearInterval(interval);
   }, [currentUser?.playerId]);
 
+  // ========== AUTH FUNCTIONS (UPDATED WITH CLOUD LOGIN/SIGNUP) ==========
   const handleAuthSubmit = async () => {
     try {
       const email = emailInput.trim().toLowerCase();
@@ -474,6 +584,8 @@ export default function App() {
         );
 
         if (!response.ok) {
+          const errorText = await response.text();
+          console.log('Signup database error:', errorText);
           Alert.alert('Error', 'Could not create account.');
           return;
         }
@@ -484,6 +596,7 @@ export default function App() {
         return;
       }
 
+      // ========== CLOUD LOGIN ==========
       if (authMode === 'LOGIN') {
         if (!password) {
           Alert.alert('Error', 'Please enter your password.');
@@ -541,6 +654,7 @@ export default function App() {
         return;
       }
 
+      // ========== FORGOT PASSWORD ==========
       if (authMode === 'FORGOT') {
         if (!newPasswordInput || newPasswordInput.length < 6) {
           Alert.alert('Error', 'New password must be at least 6 characters.');
@@ -581,6 +695,7 @@ export default function App() {
         setNewPasswordInput('');
       }
     } catch (error) {
+      console.log('Auth Error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
@@ -618,27 +733,39 @@ export default function App() {
       console.warn('Error leaving voice channel:', e);
     }
   };
-
+  // ========== JOIN AGORA VOICE CHANNEL ==========
   const joinAgoraVoiceChannel = async () => {
     try {
       const roomId = roomCodeRef.current;
-      if (!roomId) return false;
-
+      if (!roomId) {
+        console.warn('Voice channel: Room code missing');
+        return false;
+      }
       const initialized = await initializeAgoraVoice();
-      if (!initialized || !agoraEngine.current) return false;
-
-      await agoraEngine.current.joinChannel(null, `ludo_${roomId}`, 0, {
-        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
-        channelProfile: ChannelProfileType.ChannelProfileCommunication,
-      });
-
+      if (!initialized || !agoraEngine.current) {
+        console.warn('Voice channel: Agora initialization failed');
+        return false;
+      }
+      await agoraEngine.current.joinChannel(
+        null,
+        `ludo_${roomId}`,
+        0,
+        {
+          clientRoleType:
+            ClientRoleType.ClientRoleBroadcaster,
+          channelProfile:
+            ChannelProfileType.ChannelProfileCommunication,
+        }
+      );
       await agoraEngine.current.muteLocalAudioStream(!isMicOn);
+      console.log('Joined Agora voice channel:', `ludo_${roomId}`);
       return true;
     } catch (error) {
+      console.warn('Error joining Agora voice channel:', error);
       return false;
     }
   };
-
+  // ========== HELPER FUNCTIONS ==========
   const deductUserCoins = async (amount) => {
     if (!currentUserRef.current) return false;
     if (currentUserRef.current.coins < amount) {
@@ -672,17 +799,15 @@ export default function App() {
       });
     } catch (e) {}
   };
-
+  // ========== DAILY BONUS ==========
   const claimDailyBonus = async () => {
     if (!currentUserRef.current?.playerId) return;
-
     const playerId = currentUserRef.current.playerId;
     const bonusKey = `@ludo_daily_bonus_${playerId}`;
     const today = new Date().toDateString();
 
     try {
       const lastClaimDate = await AsyncStorage.getItem(bonusKey);
-
       if (lastClaimDate === today) {
         setDailyBonusClaimed(true);
         Alert.alert(
@@ -691,54 +816,60 @@ export default function App() {
         );
         return;
       }
-
       const reward = 200;
-
       const updatedUser = {
         ...currentUserRef.current,
         coins: Number(currentUserRef.current.coins || 0) + reward
       };
-
       currentUserRef.current = updatedUser;
       setCurrentUser(updatedUser);
-
       await AsyncStorage.setItem(
         '@ludo_supreme_user',
         JSON.stringify(updatedUser)
       );
       await AsyncStorage.setItem(bonusKey, today);
       setDailyBonusClaimed(true);
-
       await syncUserCoinsToCloud(
         updatedUser.playerId,
         updatedUser.coins
       );
-
       Alert.alert(
         '🎉 Daily Bonus Claimed!',
         `🪙 ${reward} Coins aapke account mein add kar diye gaye hain!`
       );
     } catch (error) {
-      Alert.alert('Error', 'Daily Bonus claim nahi ho saka. Please try again.');
+      console.log('Daily Bonus Error:', error);
+      Alert.alert(
+        'Error',
+        'Daily Bonus claim nahi ho saka. Please try again.'
+      );
     }
   };
-
+  // ========== LOAD GLOBAL LEADERBOARD ==========
   const loadGlobalLeaderboard = async () => {
     try {
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_users?select=player_id,name,coins&order=coins.desc`,
-        { headers: supabaseHeaders }
+        {
+          headers: supabaseHeaders
+        }
       );
-      if (!response.ok) return;
+      if (!response.ok) {
+        console.log('Leaderboard load failed:', response.status);
+        return;
+      }
       const data = await response.json();
       if (Array.isArray(data)) {
         setCloudLeaderboardData(
-          [...data].sort((a, b) => Number(b.coins || 0) - Number(a.coins || 0))
+          [...data].sort(
+            (a, b) => Number(b.coins || 0) - Number(a.coins || 0)
+          )
         );
       }
-    } catch (error) {}
+    } catch (error) {
+      console.log('Leaderboard error:', error);
+    }
   };
-
   const recordRecentPlayer = async (playerObj) => {
     if (!currentUserRef.current || !playerObj?.id || playerObj.id === currentUserRef.current.playerId) return;
     try {
@@ -859,6 +990,7 @@ export default function App() {
              (c1 === 'RED' && c2 === 'YELLOW') || (c1 === 'YELLOW' && c2 === 'RED') );
   };
 
+  // ========== GAME LOGIC FUNCTIONS ==========
   const getValidMoves = (color, diceVal) => {
     const playerPawns = pawnsRef.current[color];
     if (!playerPawns) return [];
@@ -870,99 +1002,237 @@ export default function App() {
     return validIndexes;
   };
 
+
   const getStrategicMoveIndex = (color, diceVal, validMoves) => {
-    if (!validMoves || validMoves.length === 0) return null;
-    if (validMoves.length === 1) return validMoves[0];
+  if (!validMoves || validMoves.length === 0) return null;
+  if (validMoves.length === 1) return validMoves[0];
 
-    const playerPawns = pawnsRef.current[color];
+  const playerPawns = pawnsRef.current[color];
 
-    const getEnemyThreat = (targetTrack, movingColor) => {
-      let threatScore = 0;
-      for (const enemy of activeColorsRef.current) {
-        if (enemy === movingColor) continue;
-        if (isTeammate(movingColor, enemy)) continue;
-        for (const enemyStep of pawnsRef.current[enemy]) {
-          if (enemyStep < 0 || enemyStep >= 51) continue;
-          const enemyTrack = (START_INDEX[enemy] + enemyStep) % 52;
-          const distance = (targetTrack - enemyTrack + 52) % 52;
-          if (distance >= 1 && distance <= 6) {
-            threatScore += (7 - distance) * 700;
-          }
+  // ==========================================
+  // EXTREME HARD COMPUTER AI
+  // ==========================================
+
+  const getEnemyThreat = (targetTrack, movingColor) => {
+    let threatScore = 0;
+
+    for (const enemy of activeColorsRef.current) {
+      if (enemy === movingColor) continue;
+      if (isTeammate(movingColor, enemy)) continue;
+
+      for (const enemyStep of pawnsRef.current[enemy]) {
+        if (enemyStep < 0 || enemyStep >= 51) continue;
+
+        const enemyTrack =
+          (START_INDEX[enemy] + enemyStep) % 52;
+
+        // Enemy se target tak distance
+        const distance =
+          (targetTrack - enemyTrack + 52) % 52;
+
+        // Enemy next dice roll mein capture kar sakta hai
+        if (distance >= 1 && distance <= 6) {
+          threatScore += (7 - distance) * 700;
         }
-      }
-      return threatScore;
-    };
-
-    const canCaptureEnemy = (targetTrack, movingColor) => {
-      let captureScore = 0;
-      for (const enemy of activeColorsRef.current) {
-        if (enemy === movingColor) continue;
-        if (isTeammate(movingColor, enemy)) continue;
-        for (const enemyStep of pawnsRef.current[enemy]) {
-          if (enemyStep < 0 || enemyStep >= 51) continue;
-          const enemyTrack = (START_INDEX[enemy] + enemyStep) % 52;
-          if (enemyTrack === targetTrack) {
-            captureScore += 10000;
-          }
-        }
-      }
-      return captureScore;
-    };
-
-    let bestMove = validMoves[0];
-    let bestScore = -Infinity;
-
-    for (const idx of validMoves) {
-      const currentStep = playerPawns[idx];
-      const targetStep = currentStep === -1 ? 0 : currentStep + diceVal;
-      let score = 0;
-
-      if (targetStep === 56) score += 15000;
-      if (targetStep >= 51 && targetStep < 56) {
-        score += 7000 + targetStep * 80;
-      }
-
-      if (targetStep >= 0 && targetStep < 51) {
-        const targetTrack = (START_INDEX[color] + targetStep) % 52;
-        score += canCaptureEnemy(targetTrack, color);
-
-        if (SAFE_INDEXES.includes(targetTrack)) {
-          score += 3500;
-        } else {
-          score -= getEnemyThreat(targetTrack, color);
-        }
-
-        if (currentStep >= 0 && currentStep < 51) {
-          const currentTrack = (START_INDEX[color] + currentStep) % 52;
-          if (!SAFE_INDEXES.includes(currentTrack)) {
-            const currentDanger = getEnemyThreat(currentTrack, color);
-            const targetDanger = SAFE_INDEXES.includes(targetTrack) ? 0 : getEnemyThreat(targetTrack, color);
-            if (currentDanger > targetDanger) {
-              score += Math.min(currentDanger - targetDanger, 5000);
-            }
-          }
-        }
-        score += targetStep * 35;
-      }
-
-      if (diceVal === 6 && currentStep === -1) {
-        const activePawnCount = playerPawns.filter(step => step >= 0 && step < 56).length;
-        if (activePawnCount < 2) score += 2800;
-        else if (activePawnCount < 3) score += 1400;
-      }
-
-      score += Math.random() * 10;
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = idx;
       }
     }
-    return bestMove;
+
+    return threatScore;
   };
+
+
+  const canCaptureEnemy = (targetTrack, movingColor) => {
+    let captureScore = 0;
+
+    for (const enemy of activeColorsRef.current) {
+      if (enemy === movingColor) continue;
+      if (isTeammate(movingColor, enemy)) continue;
+
+      for (const enemyStep of pawnsRef.current[enemy]) {
+        if (enemyStep < 0 || enemyStep >= 51) continue;
+
+        const enemyTrack =
+          (START_INDEX[enemy] + enemyStep) % 52;
+
+        if (enemyTrack === targetTrack) {
+          captureScore += 10000;
+        }
+      }
+    }
+
+    return captureScore;
+  };
+
+
+  let bestMove = validMoves[0];
+  let bestScore = -Infinity;
+
+
+  for (const idx of validMoves) {
+    const currentStep = playerPawns[idx];
+
+    // Target position
+    const targetStep =
+      currentStep === -1
+        ? 0
+        : currentStep + diceVal;
+
+    let score = 0;
+
+
+    // ==========================================
+    // 1. FINISH GOTI = VERY HIGH PRIORITY
+    // ==========================================
+
+    if (targetStep === 56) {
+      score += 15000;
+    }
+
+
+    // ==========================================
+    // 2. HOME LANE PRIORITY
+    // ==========================================
+
+    if (targetStep >= 51 && targetStep < 56) {
+      score += 7000;
+
+      // Home ke jitna paas utna better
+      score += targetStep * 80;
+    }
+
+
+    // ==========================================
+    // 3. MAIN BOARD POSITION
+    // ==========================================
+
+    if (targetStep >= 0 && targetStep < 51) {
+
+      const targetTrack =
+        (START_INDEX[color] + targetStep) % 52;
+
+
+      // ======================================
+      // CAPTURE ENEMY = HIGHEST ATTACK
+      // ======================================
+
+      score += canCaptureEnemy(targetTrack, color);
+
+
+      // ======================================
+      // SAFE CELL
+      // ======================================
+
+      if (SAFE_INDEXES.includes(targetTrack)) {
+        score += 3500;
+      } else {
+
+        // Enemy attack danger check
+        const danger =
+          getEnemyThreat(targetTrack, color);
+
+        score -= danger;
+      }
+
+
+      // ======================================
+      // CURRENT PAWN DANGER CHECK
+      // Agar goti already danger mein hai aur
+      // move karke bach rahi hai
+      // ======================================
+
+      if (currentStep >= 0 && currentStep < 51) {
+
+        const currentTrack =
+          (START_INDEX[color] + currentStep) % 52;
+
+        if (!SAFE_INDEXES.includes(currentTrack)) {
+
+          const currentDanger =
+            getEnemyThreat(currentTrack, color);
+
+          const targetDanger =
+            SAFE_INDEXES.includes(targetTrack)
+              ? 0
+              : getEnemyThreat(targetTrack, color);
+
+          // Danger se escape karna smart move hai
+          if (currentDanger > targetDanger) {
+            score +=
+              Math.min(
+                currentDanger - targetDanger,
+                5000
+              );
+          }
+        }
+      }
+
+
+      // ======================================
+      // FORWARD PROGRESS
+      // ======================================
+
+      score += targetStep * 35;
+    }
+
+
+    // ==========================================
+    // 4. SIX PAR NEW GOTI NIKALNA
+    // ==========================================
+
+    if (
+      diceVal === 6 &&
+      currentStep === -1
+    ) {
+      const activePawnCount =
+        playerPawns.filter(
+          step => step >= 0 && step < 56
+        ).length;
+
+      // Board par kam goti ho to new goti
+      // nikalna useful hai
+      if (activePawnCount < 2) {
+        score += 2800;
+      } else if (activePawnCount < 3) {
+        score += 1400;
+      }
+    }
+
+
+    // ==========================================
+    // 5. LAST PART OF JOURNEY PRIORITY
+    // ==========================================
+
+    if (
+      currentStep >= 35 &&
+      currentStep < 51
+    ) {
+      score += 1000;
+    }
+
+
+    // ==========================================
+    // 6. RANDOM TIE BREAKER
+    // Same score par har baar same move na ho
+    // ==========================================
+
+    score += Math.random() * 10;
+
+
+    // ==========================================
+    // BEST MOVE SELECT
+    // ==========================================
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = idx;
+    }
+  }
+
+
+  return bestMove;
+};
     
   const handleTimeoutMiss = () => {
-    if (showPodiumBoard || isMoving || isRolling) return;
-
     const timedOutColor = currentTurn;
     const newMissCount = (playerMissCount[timedOutColor] || 0) + 1;
 
@@ -971,8 +1241,13 @@ export default function App() {
       [timedOutColor]: newMissCount
     }));
 
+    // 3 chances khatam → player exit
     if (newMissCount >= 3) {
-      const remainingColors = activeColors.filter(color => color !== timedOutColor);
+      const remainingColors = activeColors.filter(
+        color => color !== timedOutColor
+      );
+
+      // ===== ONLY 2 PLAYERS THE =====
       if (remainingColors.length === 1) {
         const winnerColor = remainingColors[0];
         const finalRankings = [winnerColor, timedOutColor];
@@ -984,13 +1259,33 @@ export default function App() {
         setIsMoving(false);
         setIsRolling(false);
 
-        if (winnerColor === myColorRef.current) addWinnerCoins(matchPrizePool);
-        updateUserGameStats(winnerColor === myColorRef.current);
-        sendMultiplayerSync(pawnsRef.current, 0, playerDices, false, finalRankings);
+        if (winnerColor === myColorRef.current) {
+          addWinnerCoins(matchPrizePool);
+        }
+
+        updateUserGameStats(
+          winnerColor === myColorRef.current
+        );
+
+        Alert.alert(
+          'PLAYER EXITED',
+          `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed. ${getBaseDynamicLabel(winnerColor)} wins!`
+        );
+
+        sendMultiplayerSync(
+          pawnsRef.current,
+          0,
+          playerDices,
+          false,
+          finalRankings
+        );
+
         return;
       }
 
+      // ===== 3 YA 4 PLAYERS THE =====
       const nextIdx = turnIndex % remainingColors.length;
+
       setActiveColors(remainingColors);
       setTurnIndex(nextIdx);
       setHasRolled(false);
@@ -998,13 +1293,24 @@ export default function App() {
       setIsRolling(false);
       setTurnTimeLeft(30);
 
-      sendMultiplayerSync(pawnsRef.current, nextIdx, playerDices, false);
+      Alert.alert(
+        'PLAYER EXITED',
+        `${getBaseDynamicLabel(timedOutColor)} missed 3 turns and has been removed from the game.`
+      );
+
+      sendMultiplayerSync(
+        pawnsRef.current,
+        nextIdx,
+        playerDices,
+        false
+      );
+
       return;
     }
 
+    // 3 से kam miss hai → automatic dice roll
     rollDice(false, true);
   };
-
   const nextTurn = (currentIdx = turnIndex, customActive = activeColors) => {
     const nextIdx = (currentIdx + 1) % customActive.length;
     setTurnIndex(nextIdx);
@@ -1018,8 +1324,17 @@ export default function App() {
 
     if (!isBot && !isAutoTimeout) {
       if (gameMode === 'ONLINE' && currentTurn !== myColor) return;
-      if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'ONLINE' && currentTurn !== myColor) return;
-      if (gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT') return;
+
+      if (
+        gameMode === 'HYBRID' &&
+        playerSlots[currentTurn] === 'ONLINE' &&
+        currentTurn !== myColor
+      ) return;
+
+      if (
+        gameMode === 'HYBRID' &&
+        playerSlots[currentTurn] === 'BOT'
+      ) return;
     }
 
     setIsRolling(true);
@@ -1036,27 +1351,51 @@ export default function App() {
         useNativeDriver: false
       }),
       Animated.sequence([
-        Animated.timing(diceBounceAnim, { toValue: 1.35, duration: 180, useNativeDriver: false }),
-        Animated.timing(diceBounceAnim, { toValue: 0.85, duration: 180, useNativeDriver: false }),
-        Animated.timing(diceBounceAnim, { toValue: 1, duration: 290, useNativeDriver: false }),
+        Animated.timing(diceBounceAnim, {
+          toValue: 1.35,
+          duration: 180,
+          useNativeDriver: false
+        }),
+        Animated.timing(diceBounceAnim, {
+          toValue: 0.85,
+          duration: 180,
+          useNativeDriver: false
+        }),
+        Animated.timing(diceBounceAnim, {
+          toValue: 1,
+          duration: 290,
+          useNativeDriver: false
+        }),
       ])
     ]).start();
 
+    // FINAL VALUE animation shuru hone se pehle hi lock hoti hai.
     const lockedFinalVal = Math.floor(Math.random() * 6) + 1;
+
     const shuffleSteps = [50, 70, 90, 110];
     for (let i = 0; i < shuffleSteps.length; i++) {
-      const rand = (i === shuffleSteps.length - 1) ? lockedFinalVal : Math.floor(Math.random() * 6) + 1;
+      // Last animation frame hamesha locked final value dikhayega.
+      const rand = (
+        i === shuffleSteps.length - 1
+      )
+        ? lockedFinalVal
+        : Math.floor(Math.random() * 6) + 1;
+
       updatePlayerDice(currentTurn, rand);
       await sleep(shuffleSteps[i]);
     }
 
+    // Animation ke baad bhi exactly wahi locked value set hogi.
     updatePlayerDice(currentTurn, lockedFinalVal);
     await sleep(200);
 
     setIsRolling(false);
     setHasRolled(true);
 
-    const newDices = { ...playerDicesRef.current, [currentTurn]: lockedFinalVal };
+    const newDices = {
+      ...playerDicesRef.current,
+      [currentTurn]: lockedFinalVal
+    };
     playerDicesRef.current = newDices;
 
     const validMoves = getValidMoves(currentTurn, lockedFinalVal);
@@ -1067,10 +1406,28 @@ export default function App() {
         sendMultiplayerSync(pawnsRef.current, nextIdx, newDices, false);
       }, 700);
     } else if (isBot || isAutoTimeout || validMoves.length === 1) {
-      const bestMove = getStrategicMoveIndex(currentTurn, lockedFinalVal, validMoves);
-      setTimeout(() => executeStepMovement(currentTurn, bestMove, lockedFinalVal, newDices), 400);
+      const bestMove = getStrategicMoveIndex(
+        currentTurn,
+        lockedFinalVal,
+        validMoves
+      );
+
+      setTimeout(
+        () => executeStepMovement(
+          currentTurn,
+          bestMove,
+          lockedFinalVal,
+          newDices
+        ),
+        400
+      );
     } else {
-      sendMultiplayerSync(pawnsRef.current, turnIndex, newDices, true);
+      sendMultiplayerSync(
+        pawnsRef.current,
+        turnIndex,
+        newDices,
+        true
+      );
     }
   };
 
@@ -1144,6 +1501,8 @@ export default function App() {
       setFinishedRankings(currentFinished);
       isCurrentColorWinnerNow = true;
       playSound('win');
+      const rankTitle = currentFinished.length === 1 ? '🥇 1st Place' : currentFinished.length === 2 ? '🥈 2nd Place' : '🥉 3rd Place';
+      Alert.alert('VICTORY!', `${getBaseDynamicLabel(color)} secured ${rankTitle}!`);
     }
 
     const activeRemaining = activeColors.filter((c) => !currentFinished.includes(c));
@@ -1157,7 +1516,9 @@ export default function App() {
       setPawns(updatedPawns);
       setIsMoving(false);
 
-      if (currentFinished[0] === myColorRef.current) addWinnerCoins(matchPrizePool);
+      if (currentFinished[0] === myColorRef.current) {
+        addWinnerCoins(matchPrizePool);
+      }
       updateUserGameStats(currentFinished[0] === myColorRef.current);
       sendMultiplayerSync(updatedPawns, turnIndex, currentDices, false, currentFinished);
       return;
@@ -1195,7 +1556,7 @@ export default function App() {
     }
   };
 
-  // WebSocket with Auto-Reconnection
+  // ========== WEB SOCKET HANDLER (WITH AUTO-RECONNECT) ==========
   useEffect(() => {
     if (!roomCode) return;
 
@@ -1212,9 +1573,19 @@ export default function App() {
 
       socket.onopen = () => {
         isConnecting = false;
-        socket.send(JSON.stringify({ topic: `realtime:room_${roomCode}`, event: 'phx_join', payload: {}, ref: 'room_join_ref' }));
+        console.log('WebSocket Connected Successfully');
 
+        // Subscribe to the room channel
+        socket.send(JSON.stringify({
+          topic: `realtime:room_${roomCode}`,
+          event: 'phx_join',
+          payload: {},
+          ref: 'room_join_ref'
+        }));
+
+        // Host or Guest re‑join logic
         if (isHostRef.current && currentUserRef.current) {
+          // Host: re‑announce presence
           socket.send(JSON.stringify({
             topic: `realtime:room_${roomCode}`,
             event: 'broadcast',
@@ -1229,11 +1600,23 @@ export default function App() {
             },
             ref: 'p_join_host'
           }));
+        } else if (!isHostRef.current && currentUserRef.current) {
+          // Guest: ask host to re‑confirm room and assign color again
+          socket.send(JSON.stringify({
+            topic: `realtime:room_${roomCode}`,
+            event: 'broadcast',
+            payload: {
+              type: 'CHECK_ROOM_EXISTS',
+              data: { guestId: currentUserRef.current.playerId }
+            },
+            ref: 'chk_req_guest_reconnect'
+          }));
         }
       };
 
       socket.onclose = () => {
         isConnecting = false;
+        console.log('WebSocket Disconnected. Reconnecting in 3 seconds...');
         reconnectTimer = setTimeout(() => {
           if (roomCodeRef.current) {
             connectWebSocket();
@@ -1241,7 +1624,8 @@ export default function App() {
         }, 3000);
       };
 
-      socket.onerror = () => {
+      socket.onerror = (error) => {
+        console.log('WebSocket Error:', error);
         socket.close();
       };
 
@@ -1249,9 +1633,11 @@ export default function App() {
         try {
           const message = JSON.parse(e.data);
           if (message.event !== 'broadcast') return;
+
           const type = message.payload?.type;
           const data = message.payload?.data;
 
+          // ---------- YOUR EXISTING MESSAGE HANDLERS (unchanged) ----------
           if (type === 'CHECK_ROOM_EXISTS') {
             if (!isHostRef.current || !currentUserRef.current) return;
 
@@ -1259,21 +1645,17 @@ export default function App() {
               ...Object.keys(roomPlayersRef.current),
               myColorRef.current
             ]);
-
             const active = activeColorsRef.current || [];
             const slots = playerSlotsRef.current || {};
-
             const preferredOrder = playTypeRef.current === 'TEAM'
               ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
               : active;
-
             const available = preferredOrder.filter(
               color =>
                 active.includes(color) &&
                 slots[color] === 'ONLINE' &&
                 !occupied.has(color)
             );
-
             const assignedColor = available[0];
 
             if (!assignedColor) {
@@ -1404,18 +1786,24 @@ export default function App() {
               updateUserGameStats(data.rankings[0] === myColorRef.current);
             }
           }
-        } catch (err) {}
+          // ----------------------------------------------------------------
+        } catch (err) {
+          console.log('WebSocket message error:', err);
+        }
       };
     };
 
+    // Initial connection
     connectWebSocket();
 
+    // Cleanup
     return () => {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (ws.current) ws.current.close();
     };
-  }, [roomCode]);
+  }, [roomCode]); // 👈 This dependency stays as-is
 
+  // ========== JOIN FUNCTIONS (WITH FORCED CODE SUPPORT) ==========
   const joinOnlineRoom = (forcedCode = null) => {
     const code = (forcedCode || inputRoomCode).trim();
     if (code.length < 4) {
@@ -1455,6 +1843,7 @@ export default function App() {
           const data = message.payload.data;
           const assignedColor = data.assignedColor;
           
+          // FIX: Use the roster sent by the host as the base, then add this guest
           const basePlayers = data.syncedRoomPlayers || {};
           const updatedPlayers = {
             ...basePlayers,
@@ -1551,6 +1940,7 @@ export default function App() {
           const data = message.payload.data;
           const assignedColor = data.assignedColor;
           
+          // FIX: Use the roster sent by the host as the base
           const basePlayers = data.syncedRoomPlayers || {};
           const updatedPlayers = {
             ...basePlayers,
@@ -1609,6 +1999,7 @@ export default function App() {
     }, 4500);
   };
 
+  // ========== START HOST / BOT / PASS & PLAY ==========
   const startOnlineHost = () => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setRoomCode(code);
@@ -1650,12 +2041,23 @@ export default function App() {
     setBotSelectModal(false);
     setGameMode('BOT');
   };
-
+  // ========== COMPUTER / TEAM BOT AUTO PLAY ==========
   useEffect(() => {
-    const isNormalBotTurn = gameMode === 'BOT' && currentTurn !== 'BLUE';
-    const isHybridBotTurn = gameMode === 'HYBRID' && playerSlots[currentTurn] === 'BOT';
 
+    // Normal VS COMPUTER mode
+    const isNormalBotTurn =
+      gameMode === 'BOT' &&
+      currentTurn !== 'BLUE';
+
+    // TEAM UP / HYBRID mode mein jis player ka slot BOT hai
+    const isHybridBotTurn =
+      gameMode === 'HYBRID' &&
+      playerSlots[currentTurn] === 'BOT';
+
+    // Agar current turn BOT का नहीं hai to kuch mat karo
     if (!isNormalBotTurn && !isHybridBotTurn) return;
+
+    // Agar dice already roll ho chuka hai ya movement chal raha hai
     if (hasRolled || isMoving || isRolling || showPodiumBoard) return;
 
     const botTimer = setTimeout(() => {
@@ -1663,8 +2065,17 @@ export default function App() {
     }, 800);
 
     return () => clearTimeout(botTimer);
-  }, [gameMode, currentTurn, turnIndex, playerSlots, hasRolled, isMoving, isRolling, showPodiumBoard]);
 
+  }, [
+    gameMode,
+    currentTurn,
+    turnIndex,
+    playerSlots,
+    hasRolled,
+    isMoving,
+    isRolling,
+    showPodiumBoard
+  ]);
   const startCustomPassPlay = () => {
     let colors, defaultRoomPlayers = {};
     if (playType === 'SOLO') {
@@ -1729,7 +2140,7 @@ export default function App() {
           data: { 
             activeColors, 
             playType, 
-            syncedRoomPlayers: roomPlayersRef.current, 
+            syncedRoomPlayers: roomPlayersRef.current, // 👈 Use ref to ensure latest
             entryFee: selectedEntryFee, 
             prizePool: totalPool, 
             playerSlots: playerSlotsRef.current 
@@ -1747,6 +2158,7 @@ export default function App() {
     setGameMode(playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
   };
 
+  // ========== OTHER UI HELPERS ==========
   const copyMyPlayerId = async () => {
     if (!currentUser?.playerId) return;
     await Clipboard.setStringAsync(currentUser.playerId);
@@ -1817,14 +2229,18 @@ export default function App() {
     }
   };
 
+  // ========== SUPABASE CLOUD FUNCTIONS ==========
   const fetchCloudFriendList = async (myPlayerId) => {
     if (!myPlayerId) return;
+
     try {
       const filter = `(user_a.eq.${myPlayerId},user_b.eq.${myPlayerId})`;
+
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_friendships?or=${encodeURIComponent(filter)}`,
         { headers: supabaseHeaders }
       );
+
       const friendships = await response.json();
       if (!Array.isArray(friendships)) return;
 
@@ -1841,6 +2257,7 @@ export default function App() {
         `${SUPABASE_REST_URL}/ludo_users?player_id=in.(${friendIds.join(',')})`,
         { headers: supabaseHeaders }
       );
+
       const users = await usersResponse.json();
       if (!Array.isArray(users)) return;
 
@@ -1856,11 +2273,14 @@ export default function App() {
       }));
 
       setFriendsList(formattedFriends);
-    } catch (error) {}
+    } catch (error) {
+      console.log('Friend list error:', error);
+    }
   };
 
   const checkCloudFriendRequests = async () => {
     if (!currentUserRef.current?.playerId) return;
+
     try {
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_friend_requests?to_id=eq.${encodeURIComponent(
@@ -1868,13 +2288,19 @@ export default function App() {
         )}&status=eq.pending&order=created_at.desc`,
         { headers: supabaseHeaders }
       );
+
       const data = await response.json();
-      if (Array.isArray(data)) setPendingRequests(data);
-    } catch (error) {}
+      if (Array.isArray(data)) {
+        setPendingRequests(data);
+      }
+    } catch (error) {
+      console.log('Friend request check error:', error);
+    }
   };
 
   const checkCloudGameInvites = async () => {
     if (!currentUserRef.current?.playerId) return;
+
     try {
       const response = await fetch(
         `${SUPABASE_REST_URL}/ludo_game_invites?to_id=eq.${encodeURIComponent(
@@ -1882,6 +2308,7 @@ export default function App() {
         )}&status=eq.pending&order=created_at.desc`,
         { headers: supabaseHeaders }
       );
+
       const data = await response.json();
       if (Array.isArray(data)) {
         setIncomingInvitesList(data);
@@ -1896,15 +2323,19 @@ export default function App() {
           });
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      console.log('Invite check error:', error);
+    }
   };
 
   const handleSearchUser = async () => {
     const query = searchQuery.trim();
+
     if (!query) {
       Alert.alert('Search', 'Please enter Player ID or Email.');
       return;
     }
+
     if (!currentUserRef.current?.playerId) return;
 
     setIsSearchingCloud(true);
@@ -1916,6 +2347,7 @@ export default function App() {
         `${SUPABASE_REST_URL}/ludo_users?or=${encodeURIComponent(filter)}&limit=1`,
         { headers: supabaseHeaders }
       );
+
       const data = await response.json();
       if (!Array.isArray(data) || data.length === 0) {
         Alert.alert('Not Found', 'No player found with this Player ID or Email.');
@@ -1936,6 +2368,7 @@ export default function App() {
         avatar: user.avatar || '👤'
       });
     } catch (error) {
+      console.log('Search user error:', error);
       Alert.alert('Error', 'Could not search player.');
     } finally {
       setIsSearchingCloud(false);
@@ -1943,7 +2376,10 @@ export default function App() {
   };
 
   const sendRealtimeFriendRequest = async (targetUser) => {
-    if (!currentUserRef.current?.playerId || (!targetUser?.playerId && !targetUser?.id)) return;
+    if (!currentUserRef.current?.playerId || (!targetUser?.playerId && !targetUser?.id)) {
+      return;
+    }
+
     const targetId = targetUser.playerId || targetUser.id;
     const myId = currentUserRef.current.playerId;
 
@@ -1958,9 +2394,21 @@ export default function App() {
         `${SUPABASE_REST_URL}/ludo_friendships?or=${encodeURIComponent(`(${friendshipFilter})`)}`,
         { headers: supabaseHeaders }
       );
+
       const friendshipData = await existingFriend.json();
       if (Array.isArray(friendshipData) && friendshipData.length > 0) {
         Alert.alert('Already Friends', 'This player is already in your friend list.');
+        return;
+      }
+
+      const existingRequestResponse = await fetch(
+        `${SUPABASE_REST_URL}/ludo_friend_requests?from_id=eq.${encodeURIComponent(myId)}&to_id=eq.${encodeURIComponent(targetId)}&status=eq.pending`,
+        { headers: supabaseHeaders }
+      );
+
+      const existingRequests = await existingRequestResponse.json();
+      if (Array.isArray(existingRequests) && existingRequests.length > 0) {
+        Alert.alert('Already Sent', 'Friend request already sent.');
         return;
       }
 
@@ -1987,6 +2435,7 @@ export default function App() {
       setSearchedUserResult(null);
       setSearchQuery('');
     } catch (error) {
+      console.log('Send friend request error:', error);
       Alert.alert('Error', 'Could not send friend request.');
     }
   };
@@ -2021,18 +2470,21 @@ export default function App() {
       await checkCloudFriendRequests();
       await fetchCloudFriendList(myId);
     } catch (error) {
+      console.log('Accept friend error:', error);
       Alert.alert('Error', 'Could not accept friend request.');
     }
   };
 
   const sendFriendInvite = async (friend) => {
     if (!friend || !currentUserRef.current?.playerId) return;
+
     if (!roomCode) {
       Alert.alert('Create Room First', 'Please create an online room first, then invite your friend.');
       return;
     }
 
     const friendId = friend.playerId || friend.id;
+
     try {
       const response = await fetch(`${SUPABASE_REST_URL}/ludo_game_invites`, {
         method: 'POST',
@@ -2057,12 +2509,14 @@ export default function App() {
       }
 
       Alert.alert('Invite Sent 🎮', `Invitation sent to ${friend.name}.`);
+
       setFriendsList((previous) =>
         previous.map((item) =>
           String(item.id) === String(friendId) ? { ...item, isInvited: true } : item
         )
       );
     } catch (error) {
+      console.log('Send invite error:', error);
       Alert.alert('Error', 'Could not send game invite.');
     }
   };
@@ -2087,16 +2541,22 @@ export default function App() {
       await checkCloudGameInvites();
 
       const code = String(invite.roomCode);
+
       if (invite.playType === 'TEAM') {
         setTeamJoinCode(code);
         setHybridTeamModal(true);
-        setTimeout(() => { joinTeamOnlineRoom(code); }, 500);
+        setTimeout(() => {
+          joinTeamOnlineRoom(code);
+        }, 500);
       } else {
         setInputRoomCode(code);
         setOnlineScreen(true);
-        setTimeout(() => { joinOnlineRoom(code); }, 500);
+        setTimeout(() => {
+          joinOnlineRoom(code);
+        }, 500);
       }
     } catch (error) {
+      console.log('Accept invite error:', error);
       Alert.alert('Error', 'Could not join the invited room.');
     }
   };
@@ -2116,11 +2576,15 @@ export default function App() {
           body: JSON.stringify({ status: 'declined' })
         });
       }
+
       setIncomingInvite(null);
       await checkCloudGameInvites();
-    } catch (error) {}
+    } catch (error) {
+      console.log('Decline invite error:', error);
+    }
   };
 
+  // ========== RENDER FUNCTIONS ==========
   const renderCell = (row, col) => {
     if (row < 6 && col < 6) return null;
     if (row < 6 && col > 8) return null;
@@ -2152,31 +2616,44 @@ export default function App() {
     return (
       <View key={`${row}-${col}`} style={[styles.cell, { left, top, backgroundColor: bgColor }]}>
         {isStar && <Text style={[styles.starCleanText, { transform: [{ rotate: inverseRot }] }]}>☆</Text>}
-        {arrowIcon !== '' && <Text style={[styles.arrowCleanText, { color: arrowColor }]}>{arrowIcon}</Text>}
+        {arrowIcon !== '' && <Text style={[
+  styles.arrowCleanText,
+  {
+    color: arrowColor
+  }
+]}>
+  {arrowIcon}
+</Text>}
       </View>
     );
   };
 
+  // ===== FIXED: getBaseDynamicLabel – ONLY uses roomPlayers for online/team modes =====
   const getBaseDynamicLabel = (color) => {
-    if (roomPlayers[color] && roomPlayers[color].name) {
+    // 1. If we have a name in roomPlayers, it's always correct
+    if (roomPlayers[color]?.name) {
       return roomPlayers[color].name;
     }
+
+    // 2. Fallback only for offline/local games
     if (playType === 'TEAM') {
-      if (color === 'BLUE') return 'Team A (Blue)';
-      if (color === 'GREEN') return 'Team A (Green)';
-      if (color === 'RED') return 'Team B (Red)';
-      if (color === 'YELLOW') return 'Team B (Yellow)';
+      if (color === 'BLUE') return roomPlayers['BLUE']?.name || 'Team A (Blue)';
+      if (color === 'GREEN') return roomPlayers['GREEN']?.name || 'Team A (Green)';
+      if (color === 'RED') return roomPlayers['RED']?.name || 'Team B (Red)';
+      if (color === 'YELLOW') return roomPlayers['YELLOW']?.name || 'Team B (Yellow)';
     } else {
-      if (color === myColor) return currentUser ? currentUser.name : 'You';
-      if (color === 'BLUE') return 'Player 1';
+      if (color === myColor) return currentUser?.name || 'You';
+      if (color === 'BLUE') return 'You';
       if (color === 'GREEN') return selectedPlayerCount === 2 ? 'Computer' : 'Player 3';
       if (color === 'RED') return 'Player 2';
       if (color === 'YELLOW') return 'Player 4';
     }
-    return color;
+    return `Player (${color})`;
   };
 
+  // UPDATED: renderBase – playerLabel removed
   const renderBase = (color, posStyle, isVertical) => {
+    const isPlayable = activeColors.includes(color) || finishedRankings.includes(color);
     const isRanked = finishedRankings.indexOf(color);
     const inverseRot = getInverseRotationAngle(myColor);
 
@@ -2199,12 +2676,15 @@ export default function App() {
             </Text>
           </View>
         )}
+        {/* playerLabel removed */}
       </View>
     );
   };
 
   const renderAllTokens = () => {
     const cellGroups = {};
+    const inverseRot = getInverseRotationAngle(myColor);
+
     ALL_COLORS.forEach((color) => {
       pawns[color].forEach((stepCount, idx) => {
         if (stepCount >= 0 && stepCount < 56) {
@@ -2246,10 +2726,14 @@ export default function App() {
             disabled={!hasRolled || !isMyTurn || isMoving}
             onPress={() => executeStepMovement(color, idx, playerDices[color])}
             style={[
-              styles.tokenWrapper,
-              { left: finalLeft, top: finalTop, zIndex: isMyTurn ? 25 : 10 + idx },
-              stepCount === 56 && { opacity: 0.3 }
-            ]}
+  styles.tokenWrapper,
+  {
+    left: finalLeft,
+    top: finalTop,
+    zIndex: isMyTurn ? 25 : 10 + idx
+  },
+  stepCount === 56 && { opacity: 0.3 }
+]}
           >
             <PinToken colorHex={colorHex} stackCount={stackCount} />
           </TouchableOpacity>
@@ -2266,6 +2750,7 @@ export default function App() {
     return '#2563eb';
   };
 
+  // UPDATED: renderPlayerCard – name in separate row at bottom
   const renderPlayerCard = (color, pinHex, isLeftDice = false) => {
     const isPlayable = activeColors.includes(color) && !finishedRankings.includes(color);
     if (!isPlayable) return <View style={styles.playerCardPlaceholder} />;
@@ -2300,6 +2785,7 @@ export default function App() {
           onPress={() => isCurrent && rollDice()}
           style={[styles.playerCard, isCurrent && styles.activeCardGlow]}
         >
+          {/* Upper row: dice, timer, avatar */}
           <View style={styles.cardRow}>
             {isLeftDice ? (
               <>
@@ -2338,6 +2824,7 @@ export default function App() {
             )}
           </View>
 
+          {/* 👇 Name row – full width at bottom */}
           <View style={styles.cardNameRow}>
             <Text style={styles.cardPlayerName} numberOfLines={1}>{playerName}</Text>
           </View>
@@ -2346,6 +2833,7 @@ export default function App() {
     );
   };
 
+  // ========== RENDER FRIENDS MODAL ==========
   const renderFriendsSquadModal = () => (
     <Modal transparent animationType="slide" visible={friendsModal}>
       <View style={styles.inviteModalOverlay}>
@@ -2495,6 +2983,7 @@ export default function App() {
     </Modal>
   );
 
+  // ========== COMPLETE APP RENDER ==========
   if (!currentUser) {
     return (
       <SafeAreaView style={styles.royaleContainer}>
@@ -2806,6 +3295,7 @@ export default function App() {
     );
   }
 
+  // Online Lobby
   if (onlineLobbyModal) {
     const isTeamMode = playType === 'TEAM';
     const opponentColors = activeColors.filter(c => c !== 'BLUE');
@@ -2943,6 +3433,7 @@ export default function App() {
     );
   }
 
+  // Dashboard
   if (!gameMode) {
     const winPercentage = userStats.totalPlayed > 0 ? Math.round((userStats.totalWon / userStats.totalPlayed) * 100) : 0;
     return (
@@ -2996,23 +3487,74 @@ export default function App() {
           </Modal>
         )}
         {dailyBonusModal && (
-          <Modal transparent animationType="fade" visible={dailyBonusModal}>
+          <Modal
+            transparent
+            animationType="fade"
+            visible={dailyBonusModal}
+          >
             <View style={styles.inviteModalOverlay}>
-              <View style={[styles.glassCard, { borderColor: '#facc15', borderWidth: 2 }]}>
-                <Text style={styles.podiumTitleHeader}>🎁 DAILY BONUS</Text>
-                <Text style={styles.podiumSubHeader}>Come back every day and collect your reward!</Text>
-                <View style={{ marginVertical: 20, alignItems: 'center' }}>
+              <View
+                style={[
+                  styles.glassCard,
+                  {
+                    borderColor: '#facc15',
+                    borderWidth: 2
+                  }
+                ]}
+              >
+                <Text style={styles.podiumTitleHeader}>
+                  🎁 DAILY BONUS
+                </Text>
+
+                <Text style={styles.podiumSubHeader}>
+                  Come back every day and collect your reward!
+                </Text>
+
+                <View
+                  style={{
+                    marginVertical: 20,
+                    alignItems: 'center'
+                  }}
+                >
                   <Text style={{ fontSize: 52 }}>🪙</Text>
-                  <Text style={{ color: '#facc15', fontSize: 30, fontWeight: '900', marginTop: 8 }}>+200 COINS</Text>
+
+                  <Text
+                    style={{
+                      color: '#facc15',
+                      fontSize: 30,
+                      fontWeight: '900',
+                      marginTop: 8
+                    }}
+                  >
+                    +200 COINS
+                  </Text>
                 </View>
-                <TouchableOpacity activeOpacity={0.85} style={styles.gold3DButton} onPress={claimDailyBonus}>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.gold3DButton}
+                  onPress={claimDailyBonus}
+                >
                   <Text style={styles.gold3DButtonText}>
-                    {dailyBonusClaimed ? 'ALREADY CLAIMED TODAY ✓' : 'CLAIM DAILY BONUS 🎁'}
+                    {dailyBonusClaimed
+                      ? 'ALREADY CLAIMED TODAY ✓'
+                      : 'CLAIM DAILY BONUS 🎁'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.85} style={[styles.darkSecondaryButton, { marginTop: 10 }]} onPress={() => setDailyBonusModal(false)}>
-                  <Text style={styles.darkSecondaryButtonText}>CLOSE</Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[
+                    styles.darkSecondaryButton,
+                    { marginTop: 10 }
+                  ]}
+                  onPress={() => setDailyBonusModal(false)}
+                >
+                  <Text style={styles.darkSecondaryButtonText}>
+                    CLOSE
+                  </Text>
                 </TouchableOpacity>
+
               </View>
             </View>
           </Modal>
@@ -3120,7 +3662,10 @@ export default function App() {
         {renderFriendsSquadModal()}
         <SafeAreaView style={styles.fulfilledTopActionCenterBar}>
           <View style={styles.topActionCenterInnerRow}>
-            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => { loadGlobalLeaderboard(); setLeaderboardModal(true); }}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => {
+  loadGlobalLeaderboard();
+  setLeaderboardModal(true);
+}}>
               <Text style={styles.megaFulfilledEmoji}>🏆</Text><Text style={styles.megaFulfilledText}>Leaderboard</Text>
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => { setFriendsModal(true); fetchCloudFriendList(currentUser?.playerId); }}>
@@ -3132,9 +3677,16 @@ export default function App() {
             <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setSettingsModal(true)}>
               <Text style={styles.megaFulfilledEmoji}>⚙️</Text><Text style={styles.megaFulfilledText}>Settings</Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} style={styles.megaFulfilledButton} onPress={() => setDailyBonusModal(true)}>
-              <Text style={styles.megaFulfilledEmoji}>🎁</Text><Text style={styles.megaFulfilledText}>Daily Bonus</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+  activeOpacity={0.85}
+  style={styles.megaFulfilledButton}
+  onPress={() => setDailyBonusModal(true)}
+>
+  <Text style={styles.megaFulfilledEmoji}>🎁</Text>
+  <Text style={styles.megaFulfilledText}>
+    Daily Bonus
+  </Text>
+</TouchableOpacity>
           </View>
         </SafeAreaView>
         <View style={styles.centerBannerProfileWrapPerfect}>
@@ -3160,6 +3712,7 @@ export default function App() {
     );
   }
 
+  // ========== GAME BOARD ==========
   const boardRotation = getBoardRotationAngle(myColor);
   const perspective = getPerspectiveLayout(myColor);
 
@@ -3169,6 +3722,7 @@ export default function App() {
       <Image source={require('./lobby_bg.png')} style={styles.inGameBgCover} resizeMode="cover" blurRadius={12} />
       <View style={styles.inGameBackdropShade} />
 
+      {/* Chat Modal */}
       <Modal transparent animationType="slide" visible={chatModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inviteModalOverlay}>
           <View style={[styles.glassCard, styles.chatModalBox]}>
@@ -3292,6 +3846,7 @@ export default function App() {
   );
 }
 
+// ========== STYLES ==========
 const styles = StyleSheet.create({
   royaleContainer: { flex:1, backgroundColor:'#0a0f1d', alignItems:'center', justifyContent:'space-between', paddingVertical:14, paddingHorizontal:16 },
   dashboardContainer: { flex:1, backgroundColor:'#0a0f1d', width:'100%', height:'100%' },
@@ -3377,10 +3932,32 @@ const styles = StyleSheet.create({
   podiumTitleHeader: { color:'#facc15', fontSize:20, fontWeight:'900', textAlign:'center', letterSpacing:1 },
   podiumSubHeader: { color:'#94a3b8', fontSize:12, fontWeight:'700', textAlign:'center', marginBottom:14 },
   leaderboardListWrap: { width:'100%', maxHeight:240, marginVertical:6 },
-  leaderboardRowItem: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#0a0f1d', borderRadius:12, padding:10, marginVertical:4, borderWidth:1.5, borderColor:'#334155' },
+  leaderboardRowItem: { 
+    flexDirection:'row', 
+    alignItems:'center', 
+    justifyContent:'space-between', 
+    backgroundColor:'#0a0f1d', 
+    borderRadius:12, 
+    paddingVertical:10, 
+    paddingHorizontal:12, 
+    marginVertical:4, 
+    borderWidth:1.5, 
+    borderColor:'#334155' 
+  },
   leaderboardHostRow: { borderColor:'#facc15', backgroundColor:'#1e293b' },
-  rankBadgeText: { fontSize:14, fontWeight:'900', color:'#ffffff', width:45 },
-  rankPlayerName: { fontSize:13, fontWeight:'bold', flex:1, marginLeft:6, color:'#ffffff' },
+  rankBadgeText: { 
+    fontSize: 14, 
+    fontWeight: '900', 
+    color: '#ffffff', 
+    width: 60   // 👈 FIXED: 60px so "🥈 2nd" fits properly
+  },
+  rankPlayerName: { 
+    fontSize: 13, 
+    fontWeight: 'bold', 
+    flex: 1, 
+    marginLeft: 8, 
+    color: '#ffffff' 
+  },
   rankColorSub: { fontSize:10, color:'#94a3b8', fontWeight:'600' },
   rankCoinBox: { backgroundColor:'#78350f', paddingHorizontal:8, paddingVertical:4, borderRadius:8, borderWidth:1, borderColor:'#facc15' },
   rankCoinText: { color:'#facc15', fontWeight:'900', fontSize:12 },
@@ -3553,9 +4130,25 @@ const styles = StyleSheet.create({
   playerCardPlaceholder: { width:'46%' },
   playerCard: { flexDirection:'column', alignItems:'center', justifyContent:'space-between', backgroundColor:'rgba(15,23,42,0.85)', paddingHorizontal:8, paddingVertical:6, borderRadius:12, borderWidth:1.5, borderColor:'#38bdf8', width:'100%' },
   activeCardGlow: { borderColor:'#facc15', backgroundColor:'rgba(30,58,138,0.9)', elevation:8, shadowColor:'#facc15', shadowOpacity:0.6, shadowRadius:10 },
-  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
-  cardNameRow: { width: '100%', alignItems: 'center', marginTop: 2, paddingHorizontal: 4 },
-  cardPlayerName: { color: '#ffffff', fontSize: 10, fontWeight: 'bold', textAlign: 'center', width: '100%' },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  cardNameRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 2,
+    paddingHorizontal: 4,
+  },
+  cardPlayerName: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    width: '100%',
+  },
   cardAvatarLeft: { flexDirection:'column', alignItems:'center', width:35 },
   cardAvatarRight: { flexDirection:'column', alignItems:'center', width:35 },
   cardDiceWrap: { padding:2 },
@@ -3588,6 +4181,25 @@ const styles = StyleSheet.create({
   baseInnerWhite: { width:'80%', height:'80%', backgroundColor:'#ffffff', borderRadius:6, justifyContent:'space-around', padding:8, borderWidth:1, borderColor:'#cbd5e1' },
   pocketRow: { flexDirection:'row', justifyContent:'space-around' },
   basePocket: { width:26, height:26, borderRadius:13 },
+  playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
+  playerLabelBottom: {
+    bottom: 4,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+  },
+  playerLabelTop: {
+    top: 4,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+  },
+  playerLabelRight: {
+    right: 4,
+    top: '50%',
+    width: '92%',
+    textAlign: 'center',
+  },
   centerHome: { position:'absolute', top:CELL_SIZE * 6, left:CELL_SIZE * 6, width:CELL_SIZE * 3, height:CELL_SIZE * 3, overflow:'hidden' },
   centerTriangleTop: { position:'absolute', top:0, left:0, width:0, height:0, borderLeftWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopWidth:(CELL_SIZE * 3) / 2, borderLeftColor:'transparent', borderRightColor:'transparent', borderTopColor:'#16a34a' },
   centerTriangleRight: { position:'absolute', top:0, right:0, width:0, height:0, borderTopWidth:(CELL_SIZE * 3) / 2, borderBottomWidth:(CELL_SIZE * 3) / 2, borderRightWidth:(CELL_SIZE * 3) / 2, borderTopColor:'transparent', borderBottomColor:'transparent', borderRightColor:'#eab308' },
