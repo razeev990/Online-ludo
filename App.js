@@ -52,11 +52,14 @@ const HOME_PATHS = {
   YELLOW: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]]
 };
 
+// ==========================================
+// UPDATED BASE SPOTS FOR PERFECT GOTI ALIGNMENT
+// ==========================================
 const BASE_SPOTS = {
-  BLUE: [[11.0, 2.0], [11.0, 4.0], [13.0, 2.0], [13.0, 4.0]],
+  BLUE: [[11.5, 2.0], [11.5, 4.0], [13.5, 2.0], [13.5, 4.0]],
   RED: [[2.0, 2.0], [2.0, 4.0], [4.0, 2.0], [4.0, 4.0]],
   GREEN: [[2.0, 11.0], [2.0, 13.0], [4.0, 11.0], [4.0, 13.0]],
-  YELLOW: [[11.0, 11.0], [11.0, 13.0], [13.0, 11.0], [13.0, 13.0]]
+  YELLOW: [[11.5, 11.0], [11.5, 13.0], [13.5, 11.0], [13.5, 13.0]]
 };
 
 const START_INDEX = { RED: 0, GREEN: 13, YELLOW: 26, BLUE: 39 };
@@ -1308,7 +1311,7 @@ export default function App() {
       return;
     }
 
-    // 3 से kam miss hai → automatic dice roll
+    // 3 se kam miss hai → automatic dice roll
     rollDice(false, true);
   };
   const nextTurn = (currentIdx = turnIndex, customActive = activeColors) => {
@@ -2651,9 +2654,10 @@ export default function App() {
     return `Player (${color})`;
   };
 
-  // UPDATED: renderBase – playerLabel removed
+  // ==========================================
+  // UPDATED RENDER BASE FOR PERFECT ALIGNMENT
+  // ==========================================
   const renderBase = (color, posStyle, isVertical) => {
-    const isPlayable = activeColors.includes(color) || finishedRankings.includes(color);
     const isRanked = finishedRankings.indexOf(color);
     const inverseRot = getInverseRotationAngle(myColor);
 
@@ -2676,7 +2680,6 @@ export default function App() {
             </Text>
           </View>
         )}
-        {/* playerLabel removed */}
       </View>
     );
   };
@@ -4173,14 +4176,14 @@ const styles = StyleSheet.create({
   cell: { position:'absolute', width:CELL_SIZE, height:CELL_SIZE, borderWidth:0.6, borderColor:'#94a3b8', justifyContent:'center', alignItems:'center' },
   starCleanText: { fontSize:18, color:'#334155', fontWeight:'bold' },
   arrowCleanText: { fontSize:15, fontWeight:'900' },
-  base: { position:'absolute', width:CELL_SIZE * 6, height:CELL_SIZE * 6, justifyContent:'center', alignItems:'center', padding:8 },
+  base: { position:'absolute', width:CELL_SIZE * 6, height:CELL_SIZE * 6, justifyContent:'center', alignItems:'center', padding:6 },
   redBase: { top:0, left:0, backgroundColor:'#ef4444' },
   greenBase: { top:0, right:0, backgroundColor:'#16a34a' },
   blueBase: { bottom:0, left:0, backgroundColor:'#2563eb' },
   yellowBase: { bottom:0, right:0, backgroundColor:'#eab308' },
-  baseInnerWhite: { width:'80%', height:'80%', backgroundColor:'#ffffff', borderRadius:6, justifyContent:'space-around', padding:8, borderWidth:1, borderColor:'#cbd5e1' },
-  pocketRow: { flexDirection:'row', justifyContent:'space-around' },
-  basePocket: { width:26, height:26, borderRadius:13 },
+  baseInnerWhite: { width:'84%', height:'84%', backgroundColor:'#ffffff', borderRadius:8, justifyContent:'space-around', alignItems:'center', padding:10, borderWidth:1.5, borderColor:'#cbd5e1' },
+  pocketRow: { flexDirection:'row', justifyContent:'space-around', width:'100%', alignItems:'center' },
+  basePocket: { width: CELL_SIZE * 1.3, height: CELL_SIZE * 1.3, borderRadius: (CELL_SIZE * 1.3) / 2 },
   playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
   playerLabelBottom: {
     bottom: 4,
