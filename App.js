@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+Import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, SafeAreaView,
   Alert, Animated, Easing, StatusBar, ScrollView, Modal, Image, Switch, Share,
@@ -52,7 +52,6 @@ const HOME_PATHS = {
   YELLOW: [[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]]
 };
 
-// ----------- FIXED: Perfectly Centered Tokens Inside Bases -----------
 const BASE_SPOTS = {
   BLUE: [[11.0, 2.0], [11.0, 4.0], [13.0, 2.0], [13.0, 4.0]],
   RED: [[2.0, 2.0], [2.0, 4.0], [4.0, 2.0], [4.0, 4.0]],
@@ -1557,205 +1556,252 @@ export default function App() {
     }
   };
 
-  // ========== WEB SOCKET HANDLER ==========
+  // ========== WEB SOCKET HANDLER (WITH AUTO-RECONNECT) ==========
   useEffect(() => {
     if (!roomCode) return;
 
-    const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
-    const socket = new WebSocket(wsUrl);
-    ws.current = socket;
+    let reconnectTimer = null;
+    let isConnecting = false;
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ topic: `realtime:room_${roomCode}`, event: 'phx_join', payload: {}, ref: 'room_join_ref' }));
+    const connectWebSocket = () => {
+      if (isConnecting) return;
+      isConnecting = true;
 
-      if (isHostRef.current && currentUserRef.current) {
+      const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
+      const socket = new WebSocket(wsUrl);
+      ws.current = socket;
+
+      socket.onopen = () => {
+        isConnecting = false;
+        console.log('WebSocket Connected Successfully');
+
+        // Subscribe to the room channel
         socket.send(JSON.stringify({
           topic: `realtime:room_${roomCode}`,
-          event: 'broadcast',
-          payload: {
-            type: 'PLAYER_JOINED',
-            data: {
-              color: myColorRef.current,
-              name: currentUserRef.current.name,
-              id: currentUserRef.current.playerId,
-              avatar: userAvatarRef.current
-            }
-          },
-          ref: 'p_join_host'
+          event: 'phx_join',
+          payload: {},
+          ref: 'room_join_ref'
         }));
-      }
-    };
 
-    socket.onmessage = async (e) => {
-      try {
-        const message = JSON.parse(e.data);
-        if (message.event !== 'broadcast') return;
-        const type = message.payload?.type;
-        const data = message.payload?.data;
-
-        if (type === 'CHECK_ROOM_EXISTS') {
-          if (!isHostRef.current || !currentUserRef.current) return;
-
-          const occupied = new Set([
-            ...Object.keys(roomPlayersRef.current),
-            myColorRef.current
-          ]);
-
-          const active = activeColorsRef.current || [];
-          const slots = playerSlotsRef.current || {};
-
-          // Assign only to an ONLINE slot. Team rooms fill GREEN (Team A partner)
-          // before RED/YELLOW, instead of simply taking the first empty color.
-          const preferredOrder = playTypeRef.current === 'TEAM'
-            ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
-            : active;
-
-          const available = preferredOrder.filter(
-            color =>
-              active.includes(color) &&
-              slots[color] === 'ONLINE' &&
-              !occupied.has(color)
-          );
-
-          const assignedColor = available[0];
-
-          if (!assignedColor) {
-            socket.send(JSON.stringify({
-              topic: `realtime:room_${roomCodeRef.current}`,
-              event: 'broadcast',
-              payload: { type: 'ROOM_FULL', data: {} },
-              ref: 'room_full'
-            }));
-            return;
-          }
-
-          // FIX: Ensure we send the full current roster so guest gets all player names
-          const currentRoster = roomPlayersRef.current || {};
+        // Host or Guest re‑join logic
+        if (isHostRef.current && currentUserRef.current) {
+          // Host: re‑announce presence
           socket.send(JSON.stringify({
-            topic: `realtime:room_${roomCodeRef.current}`,
+            topic: `realtime:room_${roomCode}`,
             event: 'broadcast',
             payload: {
-              type: 'ROOM_EXISTS_CONFIRMED',
+              type: 'PLAYER_JOINED',
               data: {
-                hostName: currentUserRef.current.name,
-                hostAvatar: userAvatarRef.current,
-                hostColor: myColorRef.current,
-                activeColors: activeColorsRef.current,
-                playType: playTypeRef.current,
-                entryFee: selectedEntryFeeRef.current,
-                syncedPlayerSlots: playerSlotsRef.current,
-                syncedRoomPlayers: currentRoster, // 👈 Full roster bhej rahe hain
-                assignedColor: assignedColor
+                color: myColorRef.current,
+                name: currentUserRef.current.name,
+                id: currentUserRef.current.playerId,
+                avatar: userAvatarRef.current
               }
             },
-            ref: 'confirm_ack'
+            ref: 'p_join_host'
+          }));
+        } else if (!isHostRef.current && currentUserRef.current) {
+          // Guest: ask host to re‑confirm room and assign color again
+          socket.send(JSON.stringify({
+            topic: `realtime:room_${roomCode}`,
+            event: 'broadcast',
+            payload: {
+              type: 'CHECK_ROOM_EXISTS',
+              data: { guestId: currentUserRef.current.playerId }
+            },
+            ref: 'chk_req_guest_reconnect'
           }));
         }
-        else if (type === 'CHAT_MESSAGE') {
-          setChatMessages(prev => [...prev, data]);
-        }
-        else if (type === 'VOICE_STATUS_UPDATE') {
-          setVoiceUsers(prev => ({ ...prev, [data.color]: data.isMicOn }));
-        }
-        else if (type === 'PLAYER_JOINED') {
-          const updatedRoster = {
-            ...roomPlayersRef.current,
-            [data.color]: { name: data.name, id: data.id, avatar: data.avatar }
-          };
-          roomPlayersRef.current = updatedRoster;
-          setRoomPlayers(updatedRoster);
-          recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
+      };
 
-          if (isHostRef.current && currentUserRef.current) {
+      socket.onclose = () => {
+        isConnecting = false;
+        console.log('WebSocket Disconnected. Reconnecting in 3 seconds...');
+        reconnectTimer = setTimeout(() => {
+          if (roomCodeRef.current) {
+            connectWebSocket();
+          }
+        }, 3000);
+      };
+
+      socket.onerror = (error) => {
+        console.log('WebSocket Error:', error);
+        socket.close();
+      };
+
+      socket.onmessage = async (e) => {
+        try {
+          const message = JSON.parse(e.data);
+          if (message.event !== 'broadcast') return;
+
+          const type = message.payload?.type;
+          const data = message.payload?.data;
+
+          // ---------- YOUR EXISTING MESSAGE HANDLERS (unchanged) ----------
+          if (type === 'CHECK_ROOM_EXISTS') {
+            if (!isHostRef.current || !currentUserRef.current) return;
+
+            const occupied = new Set([
+              ...Object.keys(roomPlayersRef.current),
+              myColorRef.current
+            ]);
+            const active = activeColorsRef.current || [];
+            const slots = playerSlotsRef.current || {};
+            const preferredOrder = playTypeRef.current === 'TEAM'
+              ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
+              : active;
+            const available = preferredOrder.filter(
+              color =>
+                active.includes(color) &&
+                slots[color] === 'ONLINE' &&
+                !occupied.has(color)
+            );
+            const assignedColor = available[0];
+
+            if (!assignedColor) {
+              socket.send(JSON.stringify({
+                topic: `realtime:room_${roomCodeRef.current}`,
+                event: 'broadcast',
+                payload: { type: 'ROOM_FULL', data: {} },
+                ref: 'room_full'
+              }));
+              return;
+            }
+
+            const currentRoster = roomPlayersRef.current || {};
             socket.send(JSON.stringify({
               topic: `realtime:room_${roomCodeRef.current}`,
               event: 'broadcast',
-              payload: { type: 'ROSTER_UPDATE_FULL', data: updatedRoster },
-              ref: 'roster_full'
+              payload: {
+                type: 'ROOM_EXISTS_CONFIRMED',
+                data: {
+                  hostName: currentUserRef.current.name,
+                  hostAvatar: userAvatarRef.current,
+                  hostColor: myColorRef.current,
+                  activeColors: activeColorsRef.current,
+                  playType: playTypeRef.current,
+                  entryFee: selectedEntryFeeRef.current,
+                  syncedPlayerSlots: playerSlotsRef.current,
+                  syncedRoomPlayers: currentRoster,
+                  assignedColor: assignedColor
+                }
+              },
+              ref: 'confirm_ack'
             }));
           }
-        }
-        else if (type === 'ROSTER_UPDATE_FULL') {
-          // Overwrite local roster with host's canonical version
-          roomPlayersRef.current = data;
-          setRoomPlayers(data);
-        }
-        else if (type === 'ROSTER_UPDATE') {
-          const merged = { ...roomPlayersRef.current, [data.color]: { name: data.name, id: data.id, avatar: data.avatar } };
-          roomPlayersRef.current = merged;
-          setRoomPlayers(merged);
-          recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
-        }
-        else if (type === 'PLAYER_LEFT_MATCH') {
-          const leftColor = data.color;
-          const leftName = data.name || leftColor;
-          if (activeColorsRef.current.length <= 2) {
-            Alert.alert('Opponent Left', `${leftName} has left the match. You won!`);
-            setShowPodiumBoard(true);
-            setFinishedRankings([myColorRef.current, leftColor]);
-            if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) {
-              addWinnerCoins(matchPrizePool);
-            }
-            updateUserGameStats(true);
-          } else {
-            const remainingActive = activeColorsRef.current.filter(c => c !== leftColor);
-            setActiveColors(remainingActive);
-            Alert.alert('Player Disconnected', `${leftName} has left the match.`);
-            if (currentTurn === leftColor) {
-              const nextIdx = nextTurn();
-              sendMultiplayerSync(pawnsRef.current, nextIdx, playerDicesRef.current, false);
-            }
+          else if (type === 'CHAT_MESSAGE') {
+            setChatMessages(prev => [...prev, data]);
           }
-        }
-        else if (type === 'START_MATCH') {
-          if (!isHostRef.current) {
-            await deductUserCoins(data.entryFee || 50);
+          else if (type === 'VOICE_STATUS_UPDATE') {
+            setVoiceUsers(prev => ({ ...prev, [data.color]: data.isMicOn }));
           }
-          if (data.activeColors) setActiveColors(data.activeColors);
-          if (data.playType) setPlayType(data.playType);
-          if (data.prizePool) setMatchPrizePool(data.prizePool);
-          if (data.syncedRoomPlayers) {
-            roomPlayersRef.current = data.syncedRoomPlayers;
-            setRoomPlayers(data.syncedRoomPlayers);
-          }
-          if (data.playerSlots) {
-            playerSlotsRef.current = data.playerSlots;
-            setPlayerSlots(data.playerSlots);
-          }
-          setOnlineLobbyModal(false);
-          setGameMode(data.playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
-          joinAgoraVoiceChannel();
-        }
-        else if (type === 'SYNC_GAME') {
-          // Supabase can echo our own broadcast back to this socket. Ignore that echo
-          // so an older packet cannot overwrite the locally locked final dice value.
-          if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
+          else if (type === 'PLAYER_JOINED') {
+            const updatedRoster = {
+              ...roomPlayersRef.current,
+              [data.color]: { name: data.name, id: data.id, avatar: data.avatar }
+            };
+            roomPlayersRef.current = updatedRoster;
+            setRoomPlayers(updatedRoster);
+            recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
 
-          setOnlineLobbyModal(false);
-          setGameMode((current) => current || (playType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
-          if (data.newPawns) setPawns(data.newPawns);
-          if (data.nextTurnIdx !== undefined) setTurnIndex(data.nextTurnIdx);
-          if (data.updatedDices) {
-            playerDicesRef.current = data.updatedDices;
-            setPlayerDices(data.updatedDices);
-          }
-          if (data.rolled !== undefined) setHasRolled(data.rolled);
-          if (data.syncedColors) setActiveColors(data.syncedColors);
-          if (data.syncedPlayType) setPlayType(data.syncedPlayType);
-          if (data.rankings && data.rankings.length > 0) {
-            setFinishedRankings(data.rankings);
-            setShowPodiumBoard(true);
-            if (data.rankings[0] === myColorRef.current) {
-              addWinnerCoins(matchPrizePool);
+            if (isHostRef.current && currentUserRef.current) {
+              socket.send(JSON.stringify({
+                topic: `realtime:room_${roomCodeRef.current}`,
+                event: 'broadcast',
+                payload: { type: 'ROSTER_UPDATE_FULL', data: updatedRoster },
+                ref: 'roster_full'
+              }));
             }
-            updateUserGameStats(data.rankings[0] === myColorRef.current);
           }
+          else if (type === 'ROSTER_UPDATE_FULL') {
+            roomPlayersRef.current = data;
+            setRoomPlayers(data);
+          }
+          else if (type === 'ROSTER_UPDATE') {
+            const merged = { ...roomPlayersRef.current, [data.color]: { name: data.name, id: data.id, avatar: data.avatar } };
+            roomPlayersRef.current = merged;
+            setRoomPlayers(merged);
+            recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
+          }
+          else if (type === 'PLAYER_LEFT_MATCH') {
+            const leftColor = data.color;
+            const leftName = data.name || leftColor;
+            if (activeColorsRef.current.length <= 2) {
+              Alert.alert('Opponent Left', `${leftName} has left the match. You won!`);
+              setShowPodiumBoard(true);
+              setFinishedRankings([myColorRef.current, leftColor]);
+              if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) {
+                addWinnerCoins(matchPrizePool);
+              }
+              updateUserGameStats(true);
+            } else {
+              const remainingActive = activeColorsRef.current.filter(c => c !== leftColor);
+              setActiveColors(remainingActive);
+              Alert.alert('Player Disconnected', `${leftName} has left the match.`);
+              if (currentTurn === leftColor) {
+                const nextIdx = nextTurn();
+                sendMultiplayerSync(pawnsRef.current, nextIdx, playerDicesRef.current, false);
+              }
+            }
+          }
+          else if (type === 'START_MATCH') {
+            if (!isHostRef.current) {
+              await deductUserCoins(data.entryFee || 50);
+            }
+            if (data.activeColors) setActiveColors(data.activeColors);
+            if (data.playType) setPlayType(data.playType);
+            if (data.prizePool) setMatchPrizePool(data.prizePool);
+            if (data.syncedRoomPlayers) {
+              roomPlayersRef.current = data.syncedRoomPlayers;
+              setRoomPlayers(data.syncedRoomPlayers);
+            }
+            if (data.playerSlots) {
+              playerSlotsRef.current = data.playerSlots;
+              setPlayerSlots(data.playerSlots);
+            }
+            setOnlineLobbyModal(false);
+            setGameMode(data.playType === 'TEAM' ? 'HYBRID' : 'ONLINE');
+            joinAgoraVoiceChannel();
+          }
+          else if (type === 'SYNC_GAME') {
+            if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
+
+            setOnlineLobbyModal(false);
+            setGameMode((current) => current || (playType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            if (data.newPawns) setPawns(data.newPawns);
+            if (data.nextTurnIdx !== undefined) setTurnIndex(data.nextTurnIdx);
+            if (data.updatedDices) {
+              playerDicesRef.current = data.updatedDices;
+              setPlayerDices(data.updatedDices);
+            }
+            if (data.rolled !== undefined) setHasRolled(data.rolled);
+            if (data.syncedColors) setActiveColors(data.syncedColors);
+            if (data.syncedPlayType) setPlayType(data.syncedPlayType);
+            if (data.rankings && data.rankings.length > 0) {
+              setFinishedRankings(data.rankings);
+              setShowPodiumBoard(true);
+              if (data.rankings[0] === myColorRef.current) {
+                addWinnerCoins(matchPrizePool);
+              }
+              updateUserGameStats(data.rankings[0] === myColorRef.current);
+            }
+          }
+          // ----------------------------------------------------------------
+        } catch (err) {
+          console.log('WebSocket message error:', err);
         }
-      } catch (err) {}
+      };
     };
 
-    return () => { socket.close(); };
-  }, [roomCode]);
+    // Initial connection
+    connectWebSocket();
+
+    // Cleanup
+    return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws.current) ws.current.close();
+    };
+  }, [roomCode]); // 👈 This dependency stays as-is
 
   // ========== JOIN FUNCTIONS (WITH FORCED CODE SUPPORT) ==========
   const joinOnlineRoom = (forcedCode = null) => {
