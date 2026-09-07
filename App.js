@@ -2651,59 +2651,59 @@ export default function App() {
     }
     return `Player (${color})`;
   };
-  
-const renderBase = (color, posStyle, isVertical) => {
-  const isPlayable = activeColors.includes(color) || finishedRankings.includes(color);
-  const isRanked = finishedRankings.indexOf(color);
-  const inverseRot = getInverseRotationAngle(myColor);
 
-  // Relative positions (row, col) inside the 6x6 base grid
-  const pocketPositions = [
-    [2, 2],
-    [2, 4],
-    [4, 2],
-    [4, 4]
-  ];
-  const pocketSize = CELL_SIZE * 0.75; // 75% of a cell size
+  // ========== FINAL FIXED renderBase (Uses GLOBAL BASE_SPOTS) ==========
+  const renderBase = (color, posStyle, isVertical) => {
+    const isRanked = finishedRankings.indexOf(color);
+    const inverseRot = getInverseRotationAngle(myColor);
 
-  return (
-    <View style={[styles.base, posStyle]}>
-      {/* White background box (centered) */}
-      <View style={styles.baseInnerWhite} />
+    // Pocket positions from GLOBAL coordinates (matching BASE_SPOTS)
+    const pocketPositions = BASE_SPOTS[color]; // Directly use global coordinates
 
-      {/* Pockets placed absolutely inside the base */}
-      {pocketPositions.map(([relRow, relCol], idx) => {
-        const left = relCol * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
-        const top = relRow * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
-        return (
-          <View
-            key={idx}
-            style={[
-              styles.basePocketAbsolute,
-              {
+    const pocketSize = CELL_SIZE * 0.75; // 75% of a cell
+
+    return (
+      <View style={[styles.base, posStyle]}>
+        {/* White background box (centered) */}
+        <View style={styles.baseInnerWhite} />
+
+        {/* Pockets placed at EXACT global coordinates */}
+        {pocketPositions.map(([row, col], idx) => {
+          const left = col * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
+          const top = row * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
+          return (
+            <View
+              key={idx}
+              style={{
+                position: 'absolute',
                 left,
                 top,
                 width: pocketSize,
                 height: pocketSize,
                 borderRadius: pocketSize / 2,
                 backgroundColor: getTurnColorHex(color),
-              }
-            ]}
-          />
-        );
-      })}
+                borderWidth: 1.5,
+                borderColor: 'rgba(255,255,255,0.5)',
+                elevation: 3,
+                shadowColor: '#000',
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+              }}
+            />
+          );
+        })}
 
-      {/* Ranking banner (if finished) */}
-      {isRanked !== -1 && (
-        <View style={[styles.baseRankBanner, { transform: [{ rotate: inverseRot }] }]}>
-          <Text style={styles.baseRankBannerText}>
-            {isRanked === 0 ? '🥇 1st' : isRanked === 1 ? '🥈 2nd' : isRanked === 2 ? '🥉 3rd' : '4th'}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-};
+        {/* Ranking banner (if finished) */}
+        {isRanked !== -1 && (
+          <View style={[styles.baseRankBanner, { transform: [{ rotate: inverseRot }] }]}>
+            <Text style={styles.baseRankBannerText}>
+              {isRanked === 0 ? '🥇 1st' : isRanked === 1 ? '🥈 2nd' : isRanked === 2 ? '🥉 3rd' : '4th'}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderAllTokens = () => {
     const cellGroups = {};
