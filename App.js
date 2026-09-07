@@ -13,6 +13,7 @@ import {
   ChannelProfileType,
   ClientRoleType
 } from 'react-native-agora';
+
 const SUPABASE_PROJECT_REF = 'zyqlntdpftowobsrzbgv';
 const SUPABASE_ANON_KEY = 'sb_publishable_DuyB_EEKvMkDk0QFxQykqg_ZXCMzTwo';
 const SUPABASE_REST_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1`;
@@ -2651,23 +2652,44 @@ export default function App() {
     return `Player (${color})`;
   };
 
-  // UPDATED: renderBase – playerLabel removed
+  // ========== UPDATED renderBase (FIXED) ==========
   const renderBase = (color, posStyle, isVertical) => {
     const isPlayable = activeColors.includes(color) || finishedRankings.includes(color);
     const isRanked = finishedRankings.indexOf(color);
     const inverseRot = getInverseRotationAngle(myColor);
 
+    // Relative positions of 4 pockets inside base (row, col) in grid units
+    const pocketPositions = [
+      [2, 2],
+      [2, 4],
+      [4, 2],
+      [4, 4]
+    ];
+    const pocketSize = CELL_SIZE * 0.75;
+
     return (
       <View style={[styles.base, posStyle]}>
         <View style={styles.baseInnerWhite}>
-          <View style={styles.pocketRow}>
-            <View style={[styles.basePocket, { backgroundColor: getTurnColorHex(color) }]} />
-            <View style={[styles.basePocket, { backgroundColor: getTurnColorHex(color) }]} />
-          </View>
-          <View style={styles.pocketRow}>
-            <View style={[styles.basePocket, { backgroundColor: getTurnColorHex(color) }]} />
-            <View style={[styles.basePocket, { backgroundColor: getTurnColorHex(color) }]} />
-          </View>
+          {pocketPositions.map(([relRow, relCol], idx) => {
+            const left = relCol * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
+            const top = relRow * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
+            return (
+              <View
+                key={idx}
+                style={[
+                  styles.basePocketAbsolute,
+                  {
+                    left,
+                    top,
+                    width: pocketSize,
+                    height: pocketSize,
+                    borderRadius: pocketSize / 2,
+                    backgroundColor: getTurnColorHex(color),
+                  }
+                ]}
+              />
+            );
+          })}
         </View>
         {isRanked !== -1 && (
           <View style={[styles.baseRankBanner, { transform: [{ rotate: inverseRot }] }]}>
@@ -4179,8 +4201,16 @@ const styles = StyleSheet.create({
   blueBase: { bottom:0, left:0, backgroundColor:'#2563eb' },
   yellowBase: { bottom:0, right:0, backgroundColor:'#eab308' },
   baseInnerWhite: { width:'80%', height:'80%', backgroundColor:'#ffffff', borderRadius:6, justifyContent:'space-around', padding:8, borderWidth:1, borderColor:'#cbd5e1' },
-  pocketRow: { flexDirection:'row', justifyContent:'space-around' },
-  basePocket: { width:26, height:26, borderRadius:13 },
+  // ========== NEW STYLE FOR FIXED POCKETS ==========
+  basePocketAbsolute: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
   playerLabel: { position:'absolute', fontSize:11, fontWeight:'900', color:'#ffffff', textShadowColor:'rgba(0,0,0,0.8)', textShadowRadius:3 },
   playerLabelBottom: {
     bottom: 4,
