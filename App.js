@@ -2911,8 +2911,13 @@ export default function App() {
           }
         }
 
-        const finalLeft = coords[1] * CELL_SIZE + offsetX;
-        const finalTop = coords[0] * CELL_SIZE  + offsetY;
+        // Home/base pawns use BASE_SPOTS as the CENTER point of the
+        // background pocket. tokenWrapper itself is one full CELL_SIZE wide,
+        // so for inactive pawns (-1) shift its top-left by half a cell.
+        // This places the upper visible goti exactly on the 4 background bindu.
+        const homeCenterOffset = stepCount === -1 ? CELL_SIZE / 2 : 0;
+        const finalLeft = coords[1] * CELL_SIZE - homeCenterOffset + offsetX;
+        const finalTop = coords[0] * CELL_SIZE - homeCenterOffset + offsetY;
 
         rendered.push(
           <TouchableOpacity
