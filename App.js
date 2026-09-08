@@ -2062,7 +2062,8 @@ export default function App() {
           setRoomCode(code);
           setActiveColors(['BLUE','RED','GREEN','YELLOW']);
           setPlayType('TEAM');
-          setGameMode('HYBRID');
+          // IMPORTANT: Joining a room must NOT start the match locally.
+          // The gameMode changes only after the HOST broadcasts START_MATCH.
           setSelectedEntryFee(data.entryFee || 50);
           if (data.syncedPlayerSlots) {
             playerSlotsRef.current = data.syncedPlayerSlots;
@@ -2815,50 +2816,34 @@ export default function App() {
     return `Player (${color})`;
   };
 
-  // ========== FINAL FIXED renderBase (EXACT TOKEN-CENTER ALIGNMENT) ==========
+// ========== FINAL FIXED renderBase (Uses GLOBAL BASE_SPOTS) ==========
   const renderBase = (color, posStyle, isVertical) => {
     const isRanked = finishedRankings.indexOf(color);
     const inverseRot = getInverseRotationAngle(myColor);
 
-    /*
-      IMPORTANT:
-      BASE_SPOTS are global board-cell coordinates used by the real tokens.
-      Each home/base starts at a different global board origin, so convert the
-      global coordinates to the base's local 6x6 coordinates first.
+    // Base ke andar 4 gotiyon ko bilkul center mein 2x2 grid mein rakho.
+    // BASE_SPOTS global board coordinates hain, isliye unhe local base ke
+    // absolute children mein use karne se Green/Yellow/Blue ghar ki gotiyan
+    // shift ho jaati hain.
+    const pocketPositions = [
+      [1.5, 1.5], [1.5, 3.5],
+      [3.5, 1.5], [3.5, 3.5]
+    ];
 
-      This makes the 4 background circles and the 4 inactive tokens use the
-      exact same cell centers for RED, GREEN, BLUE and YELLOW.
-    */
-    const baseOrigin = {
-      RED: [0, 0],
-      GREEN: [0, 9],
-      BLUE: [9, 0],
-      YELLOW: [9, 9],
-    }[color] || [0, 0];
-
-    const [originRow, originCol] = baseOrigin;
-    const pocketPositions = (BASE_SPOTS[color] || []).map(([globalRow, globalCol]) => [
-      globalRow - originRow,
-      globalCol - originCol,
-    ]);
-
-    // Center of every background bindu = center of its token cell.
-    const pocketSize = CELL_SIZE * 0.75;
+    const pocketSize = CELL_SIZE * 0.75; // 75% of a cell
 
     return (
       <View style={[styles.base, posStyle]}>
-        {/* White background box */}
+        {/* White background box (centered) */}
         <View style={styles.baseInnerWhite} />
 
-        {/* 4 background bindu: derived directly from BASE_SPOTS, exact token centers */}
+        {/* Pockets placed at EXACT global coordinates */}
         {pocketPositions.map(([row, col], idx) => {
           const left = col * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
           const top = row * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
-
           return (
             <View
               key={idx}
-              pointerEvents="none"
               style={{
                 position: 'absolute',
                 left,
@@ -3439,7 +3424,7 @@ export default function App() {
               setIsHost(true);
               setActiveColors(['BLUE','RED','GREEN','YELLOW']);
               setPlayType('TEAM');
-              setGameMode('HYBRID');
+              // Room creation only opens the lobby. The match starts only from startMatchFromLobby().
               setMatchPrizePool(selectedEntryFee * 4);
               setRoomPlayers({ BLUE: { name: currentUser.name, id: currentUser.playerId, avatar: userAvatar } });
               setHybridTeamModal(false);
