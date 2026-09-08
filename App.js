@@ -272,6 +272,14 @@ export default function App() {
   const [hasRolled, setHasRolled] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [turnIndex, setTurnIndex] = useState(0);
+  // Online recovery refs: keep the latest game state available even while the socket is reconnecting.
+  const turnIndexRef = useRef(0);
+  const hasRolledRef = useRef(false);
+  const finishedRankingsRef = useRef([]);
+  const gameModeRef = useRef(null);
+  const pendingGameSyncRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const intentionalSocketCloseRef = useRef(false);
 
   const spinAnim = useRef(new Animated.Value(0)).current;
   const diceBounceAnim = useRef(new Animated.Value(1)).current;
@@ -310,6 +318,11 @@ export default function App() {
   useEffect(() => { activeColorsRef.current = activeColors; }, [activeColors]);
   const playerSlotsRef = useRef(playerSlots);
   useEffect(() => { playerSlotsRef.current = playerSlots; }, [playerSlots]);
+
+  useEffect(() => { turnIndexRef.current = turnIndex; }, [turnIndex]);
+  useEffect(() => { hasRolledRef.current = hasRolled; }, [hasRolled]);
+  useEffect(() => { finishedRankingsRef.current = finishedRankings; }, [finishedRankings]);
+  useEffect(() => { gameModeRef.current = gameMode; }, [gameMode]);
 
   const ws = useRef(null);
   const agoraEngine = useRef(null);
@@ -1543,29 +1556,75 @@ export default function App() {
     }
   };
 
+  // Send the newest state immediately when possible. If the network drops, keep only the
+  // latest snapshot and flush it after reconnect so the game does not get stuck on an old move.
   const sendMultiplayerSync = (newPawns, nextTurnIdx, updatedDices, rolled, rankings = null) => {
-    if ((gameMode === 'ONLINE' || gameMode === 'HYBRID') && ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({
-        topic: `realtime:room_${roomCode}`,
-        event: 'broadcast',
-        payload: {
-          type: 'SYNC_GAME',
-          data: { newPawns, nextTurnIdx, updatedDices, rolled, rankings, syncedColors: activeColors, syncedPlayType: playType, senderId: currentUserRef.current?.playerId || null }
-        },
-        ref: '2'
-      }));
+    const payloadData = {
+      newPawns,
+      nextTurnIdx,
+      updatedDices,
+      rolled,
+      rankings,
+      syncedColors: activeColorsRef.current,
+      syncedPlayType: playTypeRef.current,
+      senderId: currentUserRef.current?.playerId || null
+    };
+
+    pendingGameSyncRef.current = payloadData;
+    turnIndexRef.current = nextTurnIdx;
+    hasRolledRef.current = rolled;
+    if (rankings) finishedRankingsRef.current = rankings;
+
+    if ((gameModeRef.current === 'ONLINE' || gameModeRef.current === 'HYBRID') &&
+        ws.current && ws.current.readyState === WebSocket.OPEN) {
+      try {
+        ws.current.send(JSON.stringify({
+          topic: `realtime:room_${roomCodeRef.current}`,
+          event: 'broadcast',
+          payload: { type: 'SYNC_GAME', data: payloadData },
+          ref: `sync_${Date.now()}`
+        }));
+        pendingGameSyncRef.current = null;
+      } catch (err) {
+        console.log('SYNC queued until reconnect:', err);
+      }
     }
   };
 
-  // ========== WEB SOCKET HANDLER (WITH AUTO-RECONNECT) ==========
+  // ========== ADVANCED WEB SOCKET AUTO-RECONNECT + STATE RECOVERY ==========
   useEffect(() => {
     if (!roomCode) return;
 
     let reconnectTimer = null;
     let isConnecting = false;
+    let disposed = false;
+
+    const sendBroadcast = (socket, type, data, ref) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+      socket.send(JSON.stringify({
+        topic: `realtime:room_${roomCodeRef.current}`,
+        event: 'broadcast',
+        payload: { type, data },
+        ref: ref || `${type}_${Date.now()}`
+      }));
+      return true;
+    };
+
+    const buildGameSnapshot = () => ({
+      newPawns: pawnsRef.current,
+      nextTurnIdx: turnIndexRef.current,
+      updatedDices: playerDicesRef.current,
+      rolled: hasRolledRef.current,
+      rankings: finishedRankingsRef.current,
+      syncedColors: activeColorsRef.current,
+      syncedPlayType: playTypeRef.current,
+      roomPlayers: roomPlayersRef.current,
+      playerSlots: playerSlotsRef.current,
+      gameMode: gameModeRef.current
+    });
 
     const connectWebSocket = () => {
-      if (isConnecting) return;
+      if (disposed || isConnecting) return;
       isConnecting = true;
 
       const wsUrl = `wss://${SUPABASE_PROJECT_REF}.supabase.co/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
@@ -1574,60 +1633,62 @@ export default function App() {
 
       socket.onopen = () => {
         isConnecting = false;
-        console.log('WebSocket Connected Successfully');
+        reconnectAttemptsRef.current = 0;
+        console.log('WebSocket connected/reconnected successfully');
 
-        // Subscribe to the room channel
         socket.send(JSON.stringify({
-          topic: `realtime:room_${roomCode}`,
+          topic: `realtime:room_${roomCodeRef.current}`,
           event: 'phx_join',
           payload: {},
-          ref: 'room_join_ref'
+          ref: `room_join_${Date.now()}`
         }));
 
-        // Host or Guest re‑join logic
-        if (isHostRef.current && currentUserRef.current) {
-          // Host: re‑announce presence
-          socket.send(JSON.stringify({
-            topic: `realtime:room_${roomCode}`,
-            event: 'broadcast',
-            payload: {
-              type: 'PLAYER_JOINED',
-              data: {
-                color: myColorRef.current,
-                name: currentUserRef.current.name,
-                id: currentUserRef.current.playerId,
-                avatar: userAvatarRef.current
-              }
-            },
-            ref: 'p_join_host'
-          }));
-        } else if (!isHostRef.current && currentUserRef.current) {
-          // Guest: ask host to re‑confirm room and assign color again
-          socket.send(JSON.stringify({
-            topic: `realtime:room_${roomCode}`,
-            event: 'broadcast',
-            payload: {
-              type: 'CHECK_ROOM_EXISTS',
-              data: { guestId: currentUserRef.current.playerId }
-            },
-            ref: 'chk_req_guest_reconnect'
-          }));
-        }
+        // Give the channel a moment to finish joining before recovery broadcasts.
+        setTimeout(() => {
+          if (disposed || socket !== ws.current || socket.readyState !== WebSocket.OPEN) return;
+          const me = currentUserRef.current;
+          if (!me) return;
+
+          // Re-announce the SAME color. Do not run the normal color-assignment flow during reconnect.
+          sendBroadcast(socket, 'PLAYER_RECONNECTED', {
+            color: myColorRef.current,
+            name: me.name,
+            id: me.playerId,
+            avatar: userAvatarRef.current
+          }, 'player_reconnected');
+
+          // Ask the host for the latest authoritative snapshot.
+          sendBroadcast(socket, 'REQUEST_GAME_STATE', {
+            requesterId: me.playerId,
+            requesterColor: myColorRef.current
+          }, 'request_game_state');
+
+          // Flush only the latest unsent local snapshot after the channel is alive again.
+          if (pendingGameSyncRef.current) {
+            sendBroadcast(socket, 'SYNC_GAME', pendingGameSyncRef.current, 'flush_pending_sync');
+            pendingGameSyncRef.current = null;
+          }
+        }, 200);
       };
 
       socket.onclose = () => {
         isConnecting = false;
-        console.log('WebSocket Disconnected. Reconnecting in 3 seconds...');
+        if (disposed || intentionalSocketCloseRef.current) return;
+
+        reconnectAttemptsRef.current += 1;
+        const attempt = reconnectAttemptsRef.current;
+        const delay = Math.min(1000 * Math.pow(2, Math.min(attempt, 4)), 8000);
+        console.log(`WebSocket disconnected. Reconnecting in ${delay}ms (attempt ${attempt})...`);
+
+        if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => {
-          if (roomCodeRef.current) {
-            connectWebSocket();
-          }
-        }, 3000);
+          if (!disposed && roomCodeRef.current) connectWebSocket();
+        }, delay);
       };
 
       socket.onerror = (error) => {
-        console.log('WebSocket Error:', error);
-        socket.close();
+        console.log('WebSocket error:', error);
+        try { socket.close(); } catch (e) {}
       };
 
       socket.onmessage = async (e) => {
@@ -1636,9 +1697,71 @@ export default function App() {
           if (message.event !== 'broadcast') return;
 
           const type = message.payload?.type;
-          const data = message.payload?.data;
+          const data = message.payload?.data || {};
 
-          // ---------- YOUR EXISTING MESSAGE HANDLERS (unchanged) ----------
+          // -------- Advanced reconnect / state recovery --------
+          if (type === 'PLAYER_RECONNECTED') {
+            if (!data.id) return;
+            const updatedRoster = {
+              ...roomPlayersRef.current,
+              [data.color]: { name: data.name, id: data.id, avatar: data.avatar }
+            };
+            roomPlayersRef.current = updatedRoster;
+            setRoomPlayers(updatedRoster);
+            if (isHostRef.current) sendBroadcast(socket, 'ROSTER_UPDATE_FULL', updatedRoster, 'roster_recovered');
+            return;
+          }
+
+          if (type === 'REQUEST_GAME_STATE') {
+            // Host is the authoritative source for a reconnecting player's state recovery.
+            if (!isHostRef.current || !data.requesterId) return;
+            sendBroadcast(socket, 'GAME_STATE_RECOVERY', {
+              targetId: data.requesterId,
+              snapshot: buildGameSnapshot()
+            }, 'game_state_recovery');
+            return;
+          }
+
+          if (type === 'GAME_STATE_RECOVERY') {
+            if (data.targetId !== currentUserRef.current?.playerId) return;
+            const snapshot = data.snapshot || {};
+            if (snapshot.newPawns) {
+              pawnsRef.current = snapshot.newPawns;
+              setPawns(snapshot.newPawns);
+            }
+            if (snapshot.nextTurnIdx !== undefined) {
+              turnIndexRef.current = snapshot.nextTurnIdx;
+              setTurnIndex(snapshot.nextTurnIdx);
+            }
+            if (snapshot.updatedDices) {
+              playerDicesRef.current = snapshot.updatedDices;
+              setPlayerDices(snapshot.updatedDices);
+            }
+            if (snapshot.rolled !== undefined) {
+              hasRolledRef.current = snapshot.rolled;
+              setHasRolled(snapshot.rolled);
+            }
+            if (snapshot.rankings) {
+              finishedRankingsRef.current = snapshot.rankings;
+              setFinishedRankings(snapshot.rankings);
+            }
+            if (snapshot.syncedColors) setActiveColors(snapshot.syncedColors);
+            if (snapshot.syncedPlayType) setPlayType(snapshot.syncedPlayType);
+            if (snapshot.roomPlayers) {
+              roomPlayersRef.current = snapshot.roomPlayers;
+              setRoomPlayers(snapshot.roomPlayers);
+            }
+            if (snapshot.playerSlots) {
+              playerSlotsRef.current = snapshot.playerSlots;
+              setPlayerSlots(snapshot.playerSlots);
+            }
+            setOnlineLobbyModal(false);
+            setGameMode(snapshot.gameMode || (snapshot.syncedPlayType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            setIsMoving(false);
+            return;
+          }
+
+          // ---------- Existing message handlers ----------
           if (type === 'CHECK_ROOM_EXISTS') {
             if (!isHostRef.current || !currentUserRef.current) return;
 
@@ -1652,43 +1775,26 @@ export default function App() {
               ? ['GREEN', 'RED', 'YELLOW', 'BLUE']
               : active;
             const available = preferredOrder.filter(
-              color =>
-                active.includes(color) &&
-                slots[color] === 'ONLINE' &&
-                !occupied.has(color)
+              color => active.includes(color) && slots[color] === 'ONLINE' && !occupied.has(color)
             );
             const assignedColor = available[0];
 
             if (!assignedColor) {
-              socket.send(JSON.stringify({
-                topic: `realtime:room_${roomCodeRef.current}`,
-                event: 'broadcast',
-                payload: { type: 'ROOM_FULL', data: {} },
-                ref: 'room_full'
-              }));
+              sendBroadcast(socket, 'ROOM_FULL', {}, 'room_full');
               return;
             }
 
-            const currentRoster = roomPlayersRef.current || {};
-            socket.send(JSON.stringify({
-              topic: `realtime:room_${roomCodeRef.current}`,
-              event: 'broadcast',
-              payload: {
-                type: 'ROOM_EXISTS_CONFIRMED',
-                data: {
-                  hostName: currentUserRef.current.name,
-                  hostAvatar: userAvatarRef.current,
-                  hostColor: myColorRef.current,
-                  activeColors: activeColorsRef.current,
-                  playType: playTypeRef.current,
-                  entryFee: selectedEntryFeeRef.current,
-                  syncedPlayerSlots: playerSlotsRef.current,
-                  syncedRoomPlayers: currentRoster,
-                  assignedColor: assignedColor
-                }
-              },
-              ref: 'confirm_ack'
-            }));
+            sendBroadcast(socket, 'ROOM_EXISTS_CONFIRMED', {
+              hostName: currentUserRef.current.name,
+              hostAvatar: userAvatarRef.current,
+              hostColor: myColorRef.current,
+              activeColors: activeColorsRef.current,
+              playType: playTypeRef.current,
+              entryFee: selectedEntryFeeRef.current,
+              syncedPlayerSlots: playerSlotsRef.current,
+              syncedRoomPlayers: roomPlayersRef.current || {},
+              assignedColor
+            }, 'confirm_ack');
           }
           else if (type === 'CHAT_MESSAGE') {
             setChatMessages(prev => [...prev, data]);
@@ -1704,14 +1810,8 @@ export default function App() {
             roomPlayersRef.current = updatedRoster;
             setRoomPlayers(updatedRoster);
             recordRecentPlayer({ id: data.id, name: data.name, avatar: data.avatar });
-
             if (isHostRef.current && currentUserRef.current) {
-              socket.send(JSON.stringify({
-                topic: `realtime:room_${roomCodeRef.current}`,
-                event: 'broadcast',
-                payload: { type: 'ROSTER_UPDATE_FULL', data: updatedRoster },
-                ref: 'roster_full'
-              }));
+              sendBroadcast(socket, 'ROSTER_UPDATE_FULL', updatedRoster, 'roster_full');
             }
           }
           else if (type === 'ROSTER_UPDATE_FULL') {
@@ -1731,9 +1831,7 @@ export default function App() {
               Alert.alert('Opponent Left', `${leftName} has left the match. You won!`);
               setShowPodiumBoard(true);
               setFinishedRankings([myColorRef.current, leftColor]);
-              if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) {
-                addWinnerCoins(matchPrizePool);
-              }
+              if (myColorRef.current === activeColorsRef.current.find(c => c !== leftColor)) addWinnerCoins(matchPrizePool);
               updateUserGameStats(true);
             } else {
               const remainingActive = activeColorsRef.current.filter(c => c !== leftColor);
@@ -1746,9 +1844,7 @@ export default function App() {
             }
           }
           else if (type === 'START_MATCH') {
-            if (!isHostRef.current) {
-              await deductUserCoins(data.entryFee || 50);
-            }
+            if (!isHostRef.current) await deductUserCoins(data.entryFee || 50);
             if (data.activeColors) setActiveColors(data.activeColors);
             if (data.playType) setPlayType(data.playType);
             if (data.prizePool) setMatchPrizePool(data.prizePool);
@@ -1766,43 +1862,52 @@ export default function App() {
           }
           else if (type === 'SYNC_GAME') {
             if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
-
             setOnlineLobbyModal(false);
-            setGameMode((current) => current || (playType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
-            if (data.newPawns) setPawns(data.newPawns);
-            if (data.nextTurnIdx !== undefined) setTurnIndex(data.nextTurnIdx);
+            setGameMode(current => current || (playTypeRef.current === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            if (data.newPawns) {
+              pawnsRef.current = data.newPawns;
+              setPawns(data.newPawns);
+            }
+            if (data.nextTurnIdx !== undefined) {
+              turnIndexRef.current = data.nextTurnIdx;
+              setTurnIndex(data.nextTurnIdx);
+            }
             if (data.updatedDices) {
               playerDicesRef.current = data.updatedDices;
               setPlayerDices(data.updatedDices);
             }
-            if (data.rolled !== undefined) setHasRolled(data.rolled);
+            if (data.rolled !== undefined) {
+              hasRolledRef.current = data.rolled;
+              setHasRolled(data.rolled);
+            }
             if (data.syncedColors) setActiveColors(data.syncedColors);
             if (data.syncedPlayType) setPlayType(data.syncedPlayType);
             if (data.rankings && data.rankings.length > 0) {
+              finishedRankingsRef.current = data.rankings;
               setFinishedRankings(data.rankings);
               setShowPodiumBoard(true);
-              if (data.rankings[0] === myColorRef.current) {
-                addWinnerCoins(matchPrizePool);
-              }
+              if (data.rankings[0] === myColorRef.current) addWinnerCoins(matchPrizePool);
               updateUserGameStats(data.rankings[0] === myColorRef.current);
             }
           }
-          // ----------------------------------------------------------------
         } catch (err) {
           console.log('WebSocket message error:', err);
         }
       };
     };
 
-    // Initial connection
+    intentionalSocketCloseRef.current = false;
     connectWebSocket();
 
-    // Cleanup
     return () => {
+      disposed = true;
+      intentionalSocketCloseRef.current = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws.current) ws.current.close();
+      if (ws.current) {
+        try { ws.current.close(); } catch (e) {}
+      }
     };
-  }, [roomCode]); // 👈 This dependency stays as-is
+  }, [roomCode]);
 
   // ========== JOIN FUNCTIONS (WITH FORCED CODE SUPPORT) ==========
   const joinOnlineRoom = (forcedCode = null) => {
@@ -2001,7 +2106,23 @@ export default function App() {
   };
 
   // ========== START HOST / BOT / PASS & PLAY ==========
-  const startOnlineHost = () => {
+  const startOnlineHost = async () => {
+    // IMPORTANT: Never create an Online room until the phone can actually
+    // reach the multiplayer backend. This prevents an offline/half-created
+    // room from opening when internet is unavailable.
+    const connected = await checkInternetConnection();
+    if (!connected) {
+      Alert.alert(
+        'Internet Connection Required',
+        'Please connect to the internet before creating an Online room. The room will not be created until an internet connection is available.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => startOnlineHost() }
+        ]
+      );
+      return;
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setRoomCode(code);
     setMyColor('BLUE');
@@ -2099,13 +2220,55 @@ export default function App() {
     setGameMode('OFFLINE');
   };
 
-  const handleSlotTypeChange = (col, newType) => {
+  // ========== INTERNET CHECK FOR ONLINE TEAM SLOTS ==========
+  // Room is never created for an ONLINE slot unless the phone can actually reach
+  // the same backend used by multiplayer.
+  const checkInternetConnection = async () => {
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeout = setTimeout(() => controller?.abort(), 5000);
+      await fetch(`${SUPABASE_REST_URL}/`, {
+        method: 'HEAD',
+        signal: controller?.signal,
+        headers: { apikey: SUPABASE_ANON_KEY }
+      });
+      clearTimeout(timeout);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const showInternetRequiredAlert = (onRetry = null) => {
+    Alert.alert(
+      'Internet Connection Required',
+      'Please connect to the internet to use an Online player. The online room will not be created until an internet connection is available.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        ...(onRetry ? [{ text: 'Retry', onPress: onRetry }] : [])
+      ]
+    );
+  };
+
+  const handleSlotTypeChange = async (col, newType) => {
     const updatedSlots = { ...playerSlots, [col]: newType };
     const hasLocal = Object.values(updatedSlots).some(t => t === 'LOCAL');
     if (!hasLocal) {
       Alert.alert('Local Player Required', 'At least 1 player slot must remain set to Local to control your turn.');
       return;
     }
+
+    // Selecting ONLINE first verifies internet/backend reachability. If offline,
+    // keep the previous slot unchanged and show the connect-to-internet prompt.
+    if (newType === 'ONLINE') {
+      const connected = await checkInternetConnection();
+      if (!connected) {
+        showInternetRequiredAlert(() => handleSlotTypeChange(col, 'ONLINE'));
+        return;
+      }
+    }
+
+    playerSlotsRef.current = updatedSlots;
     setPlayerSlots(updatedSlots);
   };
 
@@ -2661,9 +2824,11 @@ export default function App() {
     // BASE_SPOTS global board coordinates hain, isliye unhe local base ke
     // absolute children mein use karne se Green/Yellow/Blue ghar ki gotiyan
     // shift ho jaati hain.
+    // Inactive goti ka real position BASE_SPOTS mein cell coordinates par hai.
+    // Isliye background ke 4 bindu bhi bilkul unhi exact cell-centers par rakhe gaye hain.
     const pocketPositions = [
-      [1.5, 1.5], [1.5, 3.5],
-      [3.5, 1.5], [3.5, 3.5]
+      [2, 2], [2, 4],
+      [4, 2], [4, 4]
     ];
 
     const pocketSize = CELL_SIZE * 0.75; // 75% of a cell
@@ -2673,7 +2838,7 @@ export default function App() {
         {/* White background box (centered) */}
         <View style={styles.baseInnerWhite} />
 
-        {/* Pockets placed at EXACT global coordinates */}
+        {/* 4 background bindu exactly same cell-centers as BASE_SPOTS */}
         {pocketPositions.map(([row, col], idx) => {
           const left = col * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
           const top = row * CELL_SIZE + (CELL_SIZE - pocketSize) / 2;
@@ -2747,14 +2912,8 @@ export default function App() {
           }
         }
 
-        // Base (ghar) ki goti ko uske piche bane pocket ke bilkul center par rakho.
-        // BASE_SPOTS center coordinates hain, jabki tokenWrapper ka left/top uska
-        // top-left hota hai. Isliye half token size subtract karna zaroori hai.
-        const isInBase = stepCount === -1;
-        const baseTokenOffsetX = isInBase ? 12 : 0;
-        const baseTokenOffsetY = isInBase ? 12 : 0;
-        const finalLeft = coords[1] * CELL_SIZE - baseTokenOffsetX + offsetX;
-        const finalTop = coords[0] * CELL_SIZE - baseTokenOffsetY + offsetY;
+        const finalLeft = coords[1] * CELL_SIZE + offsetX;
+        const finalTop = coords[0] * CELL_SIZE  + offsetY;
 
         rendered.push(
           <TouchableOpacity
@@ -3244,9 +3403,21 @@ export default function App() {
                 </View>
               ))}
             </View>
-            <TouchableOpacity activeOpacity={0.85} style={[styles.gold3DButton, { marginTop: 14 }]} onPress={() => {
+            <TouchableOpacity activeOpacity={0.85} style={[styles.gold3DButton, { marginTop: 14 }]} onPress={async () => {
               const hasLocal = Object.values(playerSlots).some(t => t === 'LOCAL');
               if (!hasLocal) { Alert.alert('Configuration Error', 'At least 1 slot must be set to Local.'); return; }
+
+              // Final safety check: if any Team Up slot is ONLINE, do not create
+              // a room while the device has no internet/backend connection.
+              const hasOnlinePlayer = Object.values(playerSlots).some(t => t === 'ONLINE');
+              if (hasOnlinePlayer) {
+                const connected = await checkInternetConnection();
+                if (!connected) {
+                  showInternetRequiredAlert(() => {});
+                  return;
+                }
+              }
+
               const code = Math.floor(100000 + Math.random() * 900000).toString();
               setRoomCode(code);
               setMyColor('BLUE');
