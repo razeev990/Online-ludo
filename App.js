@@ -1624,6 +1624,8 @@ export default function App() {
       syncedPlayType: playTypeRef.current,
       roomPlayers: roomPlayersRef.current,
       playerSlots: playerSlotsRef.current,
+      // Explicit match state: recovery must never infer that a TEAM lobby is already playing.
+      matchStarted: matchStartedRef.current,
       gameMode: gameModeRef.current
     });
 
@@ -1759,8 +1761,23 @@ export default function App() {
               playerSlotsRef.current = snapshot.playerSlots;
               setPlayerSlots(snapshot.playerSlots);
             }
-            setOnlineLobbyModal(false);
-            setGameMode(snapshot.gameMode || (snapshot.syncedPlayType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            // IMPORTANT: A reconnect/state-recovery packet can arrive while the
+            // Team Up room is still in the lobby. Never infer HYBRID/ONLINE from
+            // the play type. The guest may enter the match only after the host
+            // has actually started it.
+            const recoveredMatchStarted = snapshot.matchStarted === true;
+
+            if (recoveredMatchStarted) {
+              matchStartedRef.current = true;
+              setOnlineLobbyModal(false);
+              setGameMode(snapshot.gameMode || (snapshot.syncedPlayType === 'TEAM' ? 'HYBRID' : 'ONLINE'));
+            } else {
+              matchStartedRef.current = false;
+              // Keep the joiner in the waiting lobby; only refresh the recovered roster/state.
+              setOnlineLobbyModal(true);
+              setGameMode(null);
+            }
+
             setIsMoving(false);
             return;
           }
