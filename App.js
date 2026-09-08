@@ -277,6 +277,9 @@ export default function App() {
   const hasRolledRef = useRef(false);
   const finishedRankingsRef = useRef([]);
   const gameModeRef = useRef(null);
+  // Lobby must stay locked until the HOST explicitly broadcasts START_MATCH.
+  // This prevents a normal SYNC_GAME packet from opening the game for a joiner.
+  const matchStartedRef = useRef(false);
   const pendingGameSyncRef = useRef(null);
   const reconnectAttemptsRef = useRef(0);
   const intentionalSocketCloseRef = useRef(false);
@@ -987,6 +990,7 @@ export default function App() {
     setVoiceUsers({});
     setFinishedRankings([]);
     setShowPodiumBoard(false);
+    matchStartedRef.current = false;
     setGameMode(null);
     setBotSelectModal(false);
     setPassPlayModal(false);
@@ -1844,6 +1848,8 @@ export default function App() {
             }
           }
           else if (type === 'START_MATCH') {
+            // Only this explicit host broadcast may open the match for guests.
+            matchStartedRef.current = true;
             if (!isHostRef.current) await deductUserCoins(data.entryFee || 50);
             if (data.activeColors) setActiveColors(data.activeColors);
             if (data.playType) setPlayType(data.playType);
@@ -1862,6 +1868,11 @@ export default function App() {
           }
           else if (type === 'SYNC_GAME') {
             if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
+
+            // A joiner must never leave the lobby because of an ordinary sync packet.
+            // Wait strictly for the host's START_MATCH event.
+            if (!matchStartedRef.current) return;
+
             setOnlineLobbyModal(false);
             setGameMode(current => current || (playTypeRef.current === 'TEAM' ? 'HYBRID' : 'ONLINE'));
             if (data.newPawns) {
@@ -2062,6 +2073,7 @@ export default function App() {
           setRoomCode(code);
           setActiveColors(['BLUE','RED','GREEN','YELLOW']);
           setPlayType('TEAM');
+          matchStartedRef.current = false;
           // IMPORTANT: Joining a room must NOT start the match locally.
           // The gameMode changes only after the HOST broadcasts START_MATCH.
           setSelectedEntryFee(data.entryFee || 50);
@@ -2276,7 +2288,14 @@ export default function App() {
   const getEffectiveReadyCount = () => {
     let count = 0;
     activeColors.forEach((colorKey) => {
-      if (roomPlayers[colorKey] || (gameMode === 'HYBRID' && (playerSlots[colorKey] === 'BOT' || playerSlots[colorKey] === 'LOCAL'))) count++;
+      const slotType = playerSlots[colorKey];
+
+      // Real online player joined, or this slot is a Bot/Local player.
+      // Bot and Local slots are ready in the lobby itself; do not wait for
+      // gameMode to become HYBRID because that happens only after START_MATCH.
+      if (roomPlayers[colorKey] || slotType === 'BOT' || slotType === 'LOCAL') {
+        count++;
+      }
     });
     return count;
   };
@@ -2291,6 +2310,7 @@ export default function App() {
     const canPlay = await deductUserCoins(selectedEntryFee);
     if (!canPlay) return;
     const totalPool = selectedEntryFee * activeColors.length;
+    matchStartedRef.current = true;
     setMatchPrizePool(totalPool);
     Object.keys(roomPlayers).forEach((col) => {
       const p = roomPlayers[col];
@@ -3429,6 +3449,7 @@ export default function App() {
               setIsHost(true);
               setActiveColors(['BLUE','RED','GREEN','YELLOW']);
               setPlayType('TEAM');
+              matchStartedRef.current = false;
               // Room creation only opens the lobby. The match starts only from startMatchFromLobby().
               setMatchPrizePool(selectedEntryFee * 4);
               setRoomPlayers({ BLUE: { name: currentUser.name, id: currentUser.playerId, avatar: userAvatar } });
