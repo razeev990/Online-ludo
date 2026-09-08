@@ -2747,8 +2747,14 @@ export default function App() {
           }
         }
 
-        const finalLeft = coords[1] * CELL_SIZE + offsetX;
-        const finalTop = coords[0] * CELL_SIZE  + offsetY;
+        // Base (ghar) ki goti ko uske piche bane pocket ke bilkul center par rakho.
+        // BASE_SPOTS center coordinates hain, jabki tokenWrapper ka left/top uska
+        // top-left hota hai. Isliye half token size subtract karna zaroori hai.
+        const isInBase = stepCount === -1;
+        const baseTokenOffsetX = isInBase ? 12 : 0;
+        const baseTokenOffsetY = isInBase ? 12 : 0;
+        const finalLeft = coords[1] * CELL_SIZE - baseTokenOffsetX + offsetX;
+        const finalTop = coords[0] * CELL_SIZE - baseTokenOffsetY + offsetY;
 
         rendered.push(
           <TouchableOpacity
