@@ -1946,25 +1946,35 @@ export default function App() {
             animateRemoteMove(data);
             return;
           }
-          else if (type === 'TURN_CHANGE') {
+                    else if (type === 'TURN_CHANGE') {
             if (data.senderId && data.senderId === currentUserRef.current?.playerId) return;
             if (!matchStartedRef.current) return;
-            if (data.updatedDices) {
-              playerDicesRef.current = data.updatedDices;
-              setPlayerDices(data.updatedDices);
-            }
-            if (data.activeColors) {
-              activeColorsRef.current = data.activeColors;
-              setActiveColors(data.activeColors);
-            }
-            if (data.nextTurnIdx !== undefined) {
-              turnIndexRef.current = data.nextTurnIdx;
-              setTurnIndex(data.nextTurnIdx);
-            }
-            hasRolledRef.current = data.rolled === true;
-            setHasRolled(data.rolled === true);
+
+            // Turn change ko queue mein daalein taaki dice animation khatam hone ka wait kare
+            const runTurnChange = async () => {
+              await remoteDiceAnimationRef.current.catch(() => {});
+              
+              if (data.updatedDices) {
+                playerDicesRef.current = data.updatedDices;
+                setPlayerDices(data.updatedDices);
+              }
+              if (data.activeColors) {
+                activeColorsRef.current = data.activeColors;
+                setActiveColors(data.activeColors);
+              }
+              if (data.nextTurnIdx !== undefined) {
+                turnIndexRef.current = data.nextTurnIdx;
+                setTurnIndex(data.nextTurnIdx);
+              }
+              
+              hasRolledRef.current = data.rolled === true;
+              setHasRolled(data.rolled === true);
+            };
+
+            remoteMoveAnimationRef.current = remoteMoveAnimationRef.current.catch(() => {}).then(runTurnChange);
             return;
           }
+
 
           // ---------- Existing message handlers ----------
           if (type === 'CHECK_ROOM_EXISTS') {
