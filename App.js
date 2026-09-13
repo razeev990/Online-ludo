@@ -2105,7 +2105,7 @@ export default function App() {
             // can never overwrite an opponent's animated dice/token action.
             return;
           }
-          }
+          
         } catch (err) {
           console.log('WebSocket message error:', err);
         }
